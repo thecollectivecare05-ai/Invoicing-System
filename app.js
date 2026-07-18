@@ -20,6 +20,31 @@ function getServiceNumbers_(obj) {
   return nums.sort((a, b) => a - b);
 }
 
+// ============================================================
+// LIVE CALCULATION (mirrors the sheet formulas):
+//   Billing Amount ($)  = Practice Monthly Collection ($) x Medical Billing Rate (%)
+//   Benefits Amount ($) = Benefits Verification Rate ($) x No. of Verified Benefits
+// Monthly Minimum logic is intentionally NOT applied here — sendInvoices()
+// in Stripe.gs/Code.gs already handles that at send-time.
+// ============================================================
+function parseNum_(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  const n = parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+// Handles rate stored as "6%", "6", or a raw decimal fraction like 0.06
+// (same convention already used by formatFieldValue() below).
+function parseRatePercent_(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  const s = String(val).trim();
+  const hasPercentSign = s.includes('%');
+  const num = parseFloat(s.replace('%', ''));
+  if (isNaN(num)) return 0;
+  if (hasPercentSign) return num / 100;
+  return (num > 0 && num < 1) ? num : num / 100;
+}
+
 // Sheet header -> friendlier display label (doesn't change the sheet's actual column name)
 const LABELS = {
   'Practice Collection Month': 'Invoice Month',
@@ -64,8 +89,8 @@ const OPTIONAL_ADD_FIELDS = [
 const EDIT_ONLY_FIELDS = [
   { key: 'Practice Monthly Collection ($)', type: 'number' },
   { key: 'No. of Verified Benefits', type: 'number' },
-  { key: 'Billing Amount ($)', type: 'number', hint: 'Overrides the sheet-calculated amount' },
-  { key: 'Benefits Amount ($)', type: 'number', hint: 'Overrides the sheet-calculated amount' },
+  { key: 'Billing Amount ($)', type: 'number' },
+  { key: 'Benefits Amount ($)', type: 'number' },
   { key: 'Invoice Status', type: 'select', options: INVOICE_STATUS_OPTIONS }
 ];
 
@@ -266,32 +291,15 @@ function renderTable() {
   wrap.innerHTML = html;
 }
 
-// Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" and
-// "Total Invoice ($)" are computed on the fly (see computeTotalInvoice below)
-// so they always match each other, even if the sheet's own Total Invoice
-// formula hasn't been updated to include additional services yet.
-// Everything else comes straight from the sheet.
+// Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" is computed
+// on the fly (sum of this row's additional services), everything else comes
+// straight from the sheet.
 function getSummaryCellValue(c, col) {
   if (col === 'Additional Amount ($)') {
     const nums = getServiceNumbers_(c);
     return nums.length ? servicesTotal(c, nums).toFixed(2) : '0.00';
   }
-  if (col === 'Total Invoice ($)') {
-    return computeTotalInvoice(c).toFixed(2);
-  }
   return c[col] != null ? c[col] : '';
-}
-
-// Billing Amount + Benefits Amount + (sum of all Additional Services for this
-// row). Calculated here in the frontend rather than trusting the sheet's own
-// "Total Invoice ($)" column, so it can't drift out of sync with the
-// Additional Amount shown next to it.
-function computeTotalInvoice(c) {
-  const billing = parseFloat(c['Billing Amount ($)']) || 0;
-  const benefits = parseFloat(c['Benefits Amount ($)']) || 0;
-  const nums = getServiceNumbers_(c);
-  const additional = nums.length ? servicesTotal(c, nums) : 0;
-  return billing + benefits + additional;
 }
 
 // Works out each additional service's amount: "fixed" type uses the full Rate,
@@ -366,7 +374,7 @@ function computeSummaryByPractice() {
   const map = {};
   STATE.clients.forEach(c => {
     const key = c['Client Name'] || '(No name)';
-    const amt = computeTotalInvoice(c);
+    const amt = parseFloat(c['Total Invoice ($)']) || 0;
     map[key] = (map[key] || 0) + amt;
   });
   return Object.keys(map).sort((a, b) => a.localeCompare(b)).map(name => ({ name, amount: map[name] }));
@@ -459,7 +467,7 @@ function openStatusDialog(key, dialogLabel) {
         <td>${escapeHtml(c['Client Name'] || '')}</td>
         <td>${escapeHtml(c['Email'] || '')}</td>
         <td>${escapeHtml(c['Payment Method'] || '—')}</td>
-        <td class="money-cell">${computeTotalInvoice(c).toFixed(2)}</td>
+        <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
         <td>${statusStamp(c['Invoice Status'])}</td>
       </tr>`;
     });
@@ -484,7 +492,7 @@ function exportRowsToExcel(rows, dialogLabel) {
     'Client Name': c['Client Name'] || '',
     'Email': c['Email'] || '',
     'Payment Method': c['Payment Method'] || '',
-    'Total Invoice ($)': computeTotalInvoice(c).toFixed(2),
+    'Total Invoice ($)': c['Total Invoice ($)'] || '',
     'Invoice Status': c['Invoice Status'] || ''
   }));
   const ws = XLSX.utils.json_to_sheet(data);
@@ -583,8 +591,15 @@ function formatFieldValue(key, val) {
   return val;
 }
 
-// These fields stay editable even in "lockedFields" mode
-const ALWAYS_EDITABLE_FIELDS = ['Payment Method', 'Billing Amount ($)', 'Benefits Amount ($)'];
+// These fields stay editable even in "lockedFields" mode.
+// Billing Amount ($) / Benefits Amount ($) are NOT here anymore — they're now
+// locked + live-calculated (see LIVE_CALC_FIELDS / recalcLiveAmounts below).
+const ALWAYS_EDITABLE_FIELDS = ['Payment Method', 'Practice Monthly Collection ($)', 'No. of Verified Benefits'];
+
+// These locked fields get their displayed value recalculated in real time
+// (Billing Amount = Collection x Rate, Benefits Amount = Benefits Rate x Benefits Count)
+// as the user edits Practice Monthly Collection ($) / No. of Verified Benefits.
+const LIVE_CALC_FIELDS = ['Billing Amount ($)', 'Benefits Amount ($)'];
 
 function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedFields }) {
   document.getElementById('modalTitle').textContent = title;
@@ -602,7 +617,8 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
       const display = f.type === 'select'
         ? (val || '—')
         : (formatFieldValue(f.key, val) || '—');
-      html += `<div class="field-readonly">${escapeHtml(display)}</div>`;
+      const liveAttr = LIVE_CALC_FIELDS.includes(f.key) ? ` data-live="${escapeAttr(f.key)}"` : '';
+      html += `<div class="field-readonly"${liveAttr}>${escapeHtml(display)}</div>`;
     } else if (f.type === 'select') {
       html += `<select data-field="${escapeAttr(f.key)}">`;
       html += `<option value="">—</option>`;
@@ -616,7 +632,7 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
   html += '</div>';
 
   if (lockedFields) {
-    html += `<p class="lock-note">🔒 These details are set when the practice is added and can't be edited here. Only Payment Method, Billing/Benefits Amount, status (from the table) and services (below) can be changed here.</p>`;
+    html += `<p class="lock-note">🔒 Rate/fee details are set when the practice is added and can't be edited here. Payment Method, Practice Monthly Collection, No. of Verified Benefits, status (from the table) and services (below) can be changed — Billing/Benefits Amount recalculate automatically.</p>`;
   }
 
   html += '<div class="section-label">Additional Services</div>';
@@ -634,6 +650,39 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
 
   html += '<div class="modal-msg" id="modalMsg"></div>';
   document.getElementById('modalBody').innerHTML = html;
+
+  // Live-recalculate Billing Amount ($) / Benefits Amount ($) display whenever
+  // Practice Monthly Collection ($) or No. of Verified Benefits changes.
+  // Medical Billing Rate (%) / Benefits Verification Rate ($) are locked here,
+  // so their fixed value is read once from `values` (the original client data).
+  const billingDisplay = document.querySelector('[data-live="Billing Amount ($)"]');
+  const benefitsDisplay = document.querySelector('[data-live="Benefits Amount ($)"]');
+  if (billingDisplay || benefitsDisplay) {
+    const rate = parseRatePercent_(values['Medical Billing Rate (%)']);
+    const benefitsRate = parseNum_(values['Benefits Verification Rate ($)']);
+
+    const recalcLiveAmounts = () => {
+      if (billingDisplay) {
+        const collectionEl = document.querySelector('[data-field="Practice Monthly Collection ($)"]');
+        const collection = parseNum_(collectionEl ? collectionEl.value : values['Practice Monthly Collection ($)']);
+        billingDisplay.textContent = (collection * rate).toFixed(2);
+      }
+      if (benefitsDisplay) {
+        const benefitsCountEl = document.querySelector('[data-field="No. of Verified Benefits"]');
+        const benefitsCount = parseNum_(benefitsCountEl ? benefitsCountEl.value : values['No. of Verified Benefits']);
+        benefitsDisplay.textContent = (benefitsRate * benefitsCount).toFixed(2);
+      }
+    };
+
+    document.getElementById('modalBody').addEventListener('input', (e) => {
+      const f = e.target.dataset.field;
+      if (f === 'Practice Monthly Collection ($)' || f === 'No. of Verified Benefits') {
+        recalcLiveAmounts();
+      }
+    });
+
+    recalcLiveAmounts(); // initial paint, so it's correct even before any typing
+  }
 
   const footer = document.getElementById('modalFooter');
   let footerHtml = '';
