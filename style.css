@@ -319,17 +319,18 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
   display: inline-block;
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10.5px;
-  letter-spacing: 0.6px;
+  letter-spacing: 0.4px;
   text-transform: uppercase;
   padding: 3px 9px;
   border: 1.5px solid currentColor;
   border-radius: 3px;
-  transform: rotate(-1.5deg);
+  white-space: nowrap;
 }
 
-.stamp.sent, .stamp.paid { color: var(--teal); background: var(--teal-bg); }
-.stamp.pending, .stamp.need-to-send-invoice { color: var(--amber); background: var(--amber-bg); }
+.stamp.sent, .stamp.paid, .stamp.already-paid { color: var(--teal); background: var(--teal-bg); }
+.stamp.pending, .stamp.need-to-send-invoice, .stamp.ach-initiated { color: var(--amber); background: var(--amber-bg); }
 .stamp.fail, .stamp.failed { color: var(--red); background: var(--red-bg); }
+.stamp.manual-invoice-check-sheet { color: #5B3EA6; background: #EFEAFB; }
 .stamp.other { color: var(--ink-soft); background: #EEF0F4; }
 
 .row-actions { display: flex; gap: 6px; }
