@@ -194,28 +194,23 @@ function renderTable() {
   html += '<th class="sticky-col sticky-2">Client</th>';
   SUMMARY_COLUMNS.forEach(c => html += `<th>${escapeHtml(label(c))}</th>`);
   html += '<th>Invoice Status</th>';
-  if (isEditor) html += '<th>Actions</th>';
   html += '</tr></thead><tbody>';
 
   STATE.clients.forEach(c => {
     html += `<tr>`;
-    html += `<td class="sticky-col sticky-1"><button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button></td>`;
+    html += `<td class="sticky-col sticky-1">
+      <button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button>
+      ${isEditor ? `<button class="edit-icon-btn" title="Edit" onclick="openEditModal(${c.row})">✎</button>` : ''}
+    </td>`;
     html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
     SUMMARY_COLUMNS.forEach(col => {
       const isMoney = /\(\$\)/.test(col) || col === 'Monthly Minimum (Billing)';
       html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(c[col] != null ? c[col] : '')}</td>`;
     });
-    html += `<td>${statusStamp(c['Invoice Status'])}</td>`;
-    if (isEditor) {
-      html += `<td class="row-actions">
-        <button class="btn btn-ghost btn-small" onclick="openEditModal(${c.row})">Edit</button>
-        <button class="btn btn-teal btn-small" onclick="sendInvoice(${c.row}, '${escapeAttr(c['Client Name'])}')">Send Invoice</button>
-        <button class="btn btn-danger btn-small" onclick="deleteClient(${c.row}, '${escapeAttr(c['Client Name'])}')">Delete</button>
-      </td>`;
-    }
+    html += `<td id="statusCell-${c.row}">${renderStatusCell(c, isEditor)}</td>`;
     html += '</tr>';
 
-    const colSpan = 3 + SUMMARY_COLUMNS.length + (isEditor ? 1 : 0);
+    const colSpan = 3 + SUMMARY_COLUMNS.length;
     const detailCols = BASE_DETAIL_COLUMNS.slice();
     for (let n = 1; n <= MAX_SERVICES; n++) {
       if (c['Additional Service ' + n]) {
@@ -245,6 +240,40 @@ function statusStamp(status) {
   const s = String(status || 'Pending').trim();
   const cls = s.toLowerCase().replace(/\s+/g, '-');
   return `<span class="stamp ${cls}">${escapeHtml(s)}</span>`;
+}
+
+function renderStatusCell(c, isEditor) {
+  if (!isEditor) return statusStamp(c['Invoice Status']);
+  return `<span class="status-click" onclick="openStatusEditor(${c.row})" title="Status change karne ke liye click karein">${statusStamp(c['Invoice Status'])}</span>`;
+}
+
+function openStatusEditor(row) {
+  const client = STATE.clients.find(c => c.row === row);
+  const cell = document.getElementById('statusCell-' + row);
+  if (!client || !cell) return;
+  const current = client['Invoice Status'] || '';
+  let html = `<select id="statusSelect-${row}" class="status-select" onchange="saveStatusChange(${row}, this.value)" onblur="revertStatusCell(${row})">`;
+  html += `<option value="" ${current === '' ? 'selected' : ''}>Pending</option>`;
+  INVOICE_STATUS_OPTIONS.forEach(o => html += `<option value="${escapeAttr(o)}" ${current === o ? 'selected' : ''}>${escapeHtml(o)}</option>`);
+  html += `</select>`;
+  cell.innerHTML = html;
+  document.getElementById('statusSelect-' + row).focus();
+}
+
+function revertStatusCell(row) {
+  const client = STATE.clients.find(c => c.row === row);
+  const cell = document.getElementById('statusCell-' + row);
+  if (client && cell) cell.innerHTML = renderStatusCell(client, true);
+}
+
+async function saveStatusChange(row, newStatus) {
+  const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
+  if (res.success) {
+    toast('Status update ho gaya.', 'ok');
+  } else {
+    toast(res.error, 'error');
+  }
+  loadClients();
 }
 
 // ============================================================
@@ -284,9 +313,10 @@ function openEditModal(row) {
   const fields = REQUIRED_FIELDS.concat(OPTIONAL_ADD_FIELDS).concat(EDIT_ONLY_FIELDS);
   renderModal({
     title: 'Edit — ' + client['Client Name'],
-    sub: 'SR# ' + client['SR#'],
+    sub: client['Email'] || '',
     fields,
     values: client,
+    rowActions: { row, name: client['Client Name'] },
     onSubmit: async (values) => {
       const res = await apiCall('updateClient', { row, data: values });
       if (res.success) {
@@ -300,7 +330,7 @@ function openEditModal(row) {
   });
 }
 
-function renderModal({ title, sub, fields, values, onSubmit }) {
+function renderModal({ title, sub, fields, values, onSubmit, rowActions }) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalSub').textContent = sub;
 
@@ -342,10 +372,27 @@ function renderModal({ title, sub, fields, values, onSubmit }) {
   updateAddServiceBtn();
 
   const footer = document.getElementById('modalFooter');
-  footer.innerHTML = `
+  let footerHtml = '';
+  if (rowActions) {
+    footerHtml += `<button class="btn btn-danger" id="modalDeleteBtn">Delete</button>`;
+    footerHtml += `<button class="btn btn-teal" id="modalSendInvoiceBtn">Send Invoice</button>`;
+    footerHtml += `<span style="flex:1"></span>`;
+  }
+  footerHtml += `
     <button class="btn btn-ghost" id="modalCancelBtn">Cancel</button>
     <button class="btn btn-primary" id="modalSaveBtn">Save</button>
   `;
+  footer.innerHTML = footerHtml;
+  if (rowActions) {
+    document.getElementById('modalDeleteBtn').addEventListener('click', async () => {
+      const ok = await deleteClient(rowActions.row, rowActions.name);
+      if (ok) closeModal();
+    });
+    document.getElementById('modalSendInvoiceBtn').addEventListener('click', async () => {
+      const ok = await sendInvoice(rowActions.row, rowActions.name);
+      if (ok) closeModal();
+    });
+  }
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
   document.getElementById('modalSaveBtn').addEventListener('click', () => {
     const inputs = document.querySelectorAll('[data-field]');
@@ -431,25 +478,29 @@ function setModalMsg(msg, type) {
 // ROW ACTIONS
 // ============================================================
 async function deleteClient(row, name) {
-  if (!confirm(`"${name}" ko delete karna hai? Ye sheet se row hata dega.`)) return;
+  if (!confirm(`"${name}" ko delete karna hai? Ye sheet se row hata dega.`)) return false;
   const res = await apiCall('deleteClient', { row });
   if (res.success) {
     toast('Delete ho gaya.', 'ok');
     loadClients();
+    return true;
   } else {
     toast(res.error, 'error');
+    return false;
   }
 }
 
 async function sendInvoice(row, name) {
-  if (!confirm(`"${name}" ko invoice send karna hai (Stripe ke through)?`)) return;
+  if (!confirm(`"${name}" ko invoice send karna hai (Stripe ke through)?`)) return false;
   toast('Invoice bheja ja raha hai…');
   const res = await apiCall('sendInvoiceForClient', { row });
   if (res.success) {
     toast('Invoice process ho gaya.', 'ok');
     loadClients();
+    return true;
   } else {
     toast(res.error, 'error');
+    return false;
   }
 }
 
