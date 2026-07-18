@@ -5,11 +5,12 @@ let STATE = {
   email: sessionStorage.getItem('email') || null,
   code: sessionStorage.getItem('code') || null,
   role: sessionStorage.getItem('role') || null,
-  clients: []
+  clients: [],
+  searchTerm: ''
 };
 
-// Additional Services ki koi fixed limit nahi — jitni add karni hon, "+ Add Service"
-// se add hoti rehti hain (sheet mein khud-ba-khud naye columns ban jate hain).
+// There's no fixed limit on Additional Services — as many as needed can be
+// added via "+ Add Service" (the sheet automatically creates new columns).
 function getServiceNumbers_(obj) {
   const nums = [];
   Object.keys(obj || {}).forEach(k => {
@@ -19,15 +20,15 @@ function getServiceNumbers_(obj) {
   return nums.sort((a, b) => a - b);
 }
 
-// Sheet header -> friendlier display label (sheet ka actual column name nahi badalta)
+// Sheet header -> friendlier display label (doesn't change the sheet's actual column name)
 const LABELS = {
   'Practice Collection Month': 'Invoice Month',
   'Monthly Minimum (Billing)': 'Minimum Amount'
 };
 function label(key) { return LABELS[key] || key; }
 
-// Invoice Status ke sab real statuses (jo sheet mein manually ya scripts se lagte hain)
-// Pehla '' wala hamesha blank/unselected default hai.
+// All real invoice statuses (set manually or by scripts in the sheet)
+// The first '' option is always the blank/unselected default.
 const INVOICE_STATUS_OPTIONS = [
   'Need to Send Invoice',
   'Manual Invoice-Check Sheet',
@@ -38,10 +39,17 @@ const INVOICE_STATUS_OPTIONS = [
   'Failed'
 ];
 
+// Status groupings used by the dashboards below
+const SENT_STATUSES = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed'];
+const PENDING_STATUSES = ['Need to Send Invoice', 'Manual Invoice-Check Sheet', ''];
+const CHARGED_STATUSES = ['Paid', 'Already Paid'];
+const CHARGE_PENDING_STATUSES = ['Sent', 'ACH-Initiated'];
+const FAILED_STATUSES = ['Failed'];
+
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
   { key: 'Email', type: 'email' },
-  { key: 'Medical Billing Rate (%)', type: 'text', hint: 'e.g. 6% ya 6' },
+  { key: 'Medical Billing Rate (%)', type: 'text', hint: 'e.g. 6% or 6' },
   { key: 'Monthly Minimum (Billing)', type: 'number' },
   { key: 'Benefits Verification Rate ($)', type: 'number' }
 ];
@@ -52,23 +60,26 @@ const OPTIONAL_ADD_FIELDS = [
   { key: 'Special Instructions', type: 'text' }
 ];
 
-// Ye sirf edit modal mein extra dikhte hain (billing calculation ke liye zaroori data)
+// These only show up in the edit modal (data needed for billing calculations)
 const EDIT_ONLY_FIELDS = [
   { key: 'Practice Monthly Collection ($)', type: 'number' },
   { key: 'No. of Verified Benefits', type: 'number' },
+  { key: 'Billing Amount ($)', type: 'number', hint: 'Overrides the sheet-calculated amount' },
+  { key: 'Benefits Amount ($)', type: 'number', hint: 'Overrides the sheet-calculated amount' },
   { key: 'Invoice Status', type: 'select', options: INVOICE_STATUS_OPTIONS }
 ];
 
-// Main table pe ye columns (Client/Status/Actions ke ilawa) — SR# ab nahi dikhega
+// Main table columns (besides Client / Status / Actions) — SR# is not shown
 const SUMMARY_COLUMNS = [
   'Practice Collection Month',
   'Monthly Minimum (Billing)',
   'Billing Amount ($)',
   'Benefits Amount ($)',
+  'Additional Amount ($)',
   'Total Invoice ($)'
 ];
 
-// Expand (▸) karne par ye sab dikhte hain — services conditionally add hote hain neeche
+// Columns shown when a row is expanded (▸) — services are added conditionally below
 const BASE_DETAIL_COLUMNS = [
   'Payment Method',
   'Practice Monthly Collection ($)',
@@ -76,11 +87,11 @@ const BASE_DETAIL_COLUMNS = [
 ];
 
 // ============================================================
-// LOGIN (Email + Access Code — "Users" sheet tab se check hota hai)
+// LOGIN (Email + Access Code — checked against the "Users" sheet tab)
 // ============================================================
 window.addEventListener('DOMContentLoaded', () => {
   if (!CONFIG.WEB_APP_URL || CONFIG.WEB_APP_URL.startsWith('PASTE_')) {
-    showGateError('config.js mein WEB_APP_URL set nahi hai.');
+    showGateError('WEB_APP_URL is not set in config.js.');
     return;
   }
 
@@ -107,7 +118,7 @@ async function handleLoginSubmit(e) {
   try {
     const res = await apiCall('login', {});
     if (!res.success) {
-      showGateError(res.error || 'Login nahi hua.');
+      showGateError(res.error || 'Login failed.');
       STATE.email = null;
       STATE.code = null;
       return;
@@ -134,7 +145,7 @@ function showGateError(msg) {
 
 function signOut() {
   sessionStorage.clear();
-  STATE = { email: null, code: null, role: null, clients: [] };
+  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '' };
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('authZone').style.display = 'none';
   document.getElementById('loginForm').reset();
@@ -182,18 +193,35 @@ async function loadClients() {
 
   const res = await apiCall('getClients', {});
   if (!res.success) {
-    wrap.innerHTML = `<div class="empty-state"><div class="mark">Kuch ghalat ho gaya</div>${escapeHtml(res.error)}</div>`;
+    wrap.innerHTML = `<div class="empty-state"><div class="mark">Something went wrong</div>${escapeHtml(res.error)}</div>`;
     return;
   }
   STATE.clients = res.data;
   document.getElementById('clientCount').textContent = res.data.length;
   renderTable();
+  renderSummaryPanel();
+  renderDashboards();
+}
+
+function getFilteredClients() {
+  const term = (STATE.searchTerm || '').trim().toLowerCase();
+  if (!term) return STATE.clients;
+  return STATE.clients.filter(c =>
+    String(c['Client Name'] || '').toLowerCase().includes(term) ||
+    String(c['Email'] || '').toLowerCase().includes(term)
+  );
 }
 
 function renderTable() {
   const wrap = document.getElementById('tableWrap');
+  const clients = getFilteredClients();
+
   if (STATE.clients.length === 0) {
-    wrap.innerHTML = `<div class="empty-state"><div class="mark">Abhi koi practice add nahi hui</div>${STATE.role === 'editor' ? '"Add Practice" button se shuru karein.' : ''}</div>`;
+    wrap.innerHTML = `<div class="empty-state"><div class="mark">No practice has been added yet</div>${STATE.role === 'editor' ? 'Get started with the "Add Practice" button.' : ''}</div>`;
+    return;
+  }
+  if (clients.length === 0) {
+    wrap.innerHTML = `<div class="empty-state"><div class="mark">No match found</div>Try a different name or email.</div>`;
     return;
   }
 
@@ -205,7 +233,7 @@ function renderTable() {
   html += '<th>Invoice Status</th>';
   html += '</tr></thead><tbody>';
 
-  STATE.clients.forEach(c => {
+  clients.forEach(c => {
     html += `<tr>`;
     html += `<td class="sticky-col sticky-1">
       <button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button>
@@ -214,7 +242,7 @@ function renderTable() {
     html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
     SUMMARY_COLUMNS.forEach(col => {
       const isMoney = /\(\$\)/.test(col) || col === 'Monthly Minimum (Billing)';
-      html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(c[col] != null ? c[col] : '')}</td>`;
+      html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(getSummaryCellValue(c, col))}</td>`;
     });
     html += `<td id="statusCell-${c.row}">${renderStatusCell(c, isEditor)}</td>`;
     html += '</tr>';
@@ -238,11 +266,22 @@ function renderTable() {
   wrap.innerHTML = html;
 }
 
-// Har additional service ka amount nikaalta hai: "fixed" type ka poora Rate,
-// "percent" type ka Rate% of (Billing Amount + Benefits Amount). Isi row ke
-// liye — agar kisi client ki isi email par 2+ rows same invoice mein group
-// hoti hain to Stripe pe actual charged amount thoda alag ho sakta hai
-// (wo cumulative total use karta hai), yahan sirf isi row ka estimate hai.
+// Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" is computed
+// on the fly (sum of this row's additional services), everything else comes
+// straight from the sheet.
+function getSummaryCellValue(c, col) {
+  if (col === 'Additional Amount ($)') {
+    const nums = getServiceNumbers_(c);
+    return nums.length ? servicesTotal(c, nums).toFixed(2) : '0.00';
+  }
+  return c[col] != null ? c[col] : '';
+}
+
+// Works out each additional service's amount: "fixed" type uses the full Rate,
+// "percent" type uses Rate% of (Billing Amount + Benefits Amount), for this row
+// only. If a client's rows get grouped into one combined invoice on Stripe, the
+// actual charged amount for a percent-type service can differ slightly (Stripe
+// uses the combined total) — this is just this row's estimate.
 function servicesTotal(c, serviceNums) {
   const base = (parseFloat(c['Billing Amount ($)']) || 0) + (parseFloat(c['Benefits Amount ($)']) || 0);
   let total = 0;
@@ -271,7 +310,7 @@ function statusStamp(status) {
 
 function renderStatusCell(c, isEditor) {
   if (!isEditor) return statusStamp(c['Invoice Status']);
-  return `<span class="status-click" onclick="openStatusEditor(${c.row})" title="Status change karne ke liye click karein">${statusStamp(c['Invoice Status'])}</span>`;
+  return `<span class="status-click" onclick="openStatusEditor(${c.row})" title="Click to change status">${statusStamp(c['Invoice Status'])}</span>`;
 }
 
 function openStatusEditor(row) {
@@ -296,11 +335,147 @@ function revertStatusCell(row) {
 async function saveStatusChange(row, newStatus) {
   const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
   if (res.success) {
-    toast('Status update ho gaya.', 'ok');
+    toast('Status updated.', 'ok');
   } else {
     toast(res.error, 'error');
   }
   loadClients();
+}
+
+// ============================================================
+// SUMMARY PANEL (right sidebar)
+// ============================================================
+function computeSummaryByPractice() {
+  const map = {};
+  STATE.clients.forEach(c => {
+    const key = c['Client Name'] || '(No name)';
+    const amt = parseFloat(c['Total Invoice ($)']) || 0;
+    map[key] = (map[key] || 0) + amt;
+  });
+  return Object.keys(map).sort((a, b) => a.localeCompare(b)).map(name => ({ name, amount: map[name] }));
+}
+
+function renderSummaryPanel() {
+  const el = document.getElementById('summaryCard');
+  if (!el) return;
+  const rows = computeSummaryByPractice();
+  const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
+
+  let html = '<h3 class="summary-title">Summary By Practice</h3>';
+  if (rows.length === 0) {
+    html += '<div class="summary-empty">No data yet.</div>';
+  } else {
+    html += '<div class="summary-list">';
+    rows.forEach(r => {
+      html += `<div class="summary-row"><span class="summary-name">${escapeHtml(r.name)}</span><span class="summary-amt">$${r.amount.toFixed(2)}</span></div>`;
+    });
+    html += '</div>';
+  }
+  html += `<div class="summary-grand"><span>Grand Total</span><span>$${grandTotal.toFixed(2)}</span></div>`;
+  el.innerHTML = html;
+}
+
+// ============================================================
+// DASHBOARDS (Invoice status + Card charge status)
+// ============================================================
+let DASH_BUCKETS = {};
+
+function statusMatches(status, list) {
+  const s = String(status || '').trim();
+  return list.includes(s);
+}
+
+function clientsByStatus(list) {
+  return STATE.clients.filter(c => statusMatches(c['Invoice Status'], list));
+}
+
+function renderDashboards() {
+  DASH_BUCKETS = {
+    sent: clientsByStatus(SENT_STATUSES),
+    pending: clientsByStatus(PENDING_STATUSES),
+    charged: clientsByStatus(CHARGED_STATUSES),
+    chargePending: clientsByStatus(CHARGE_PENDING_STATUSES),
+    failed: clientsByStatus(FAILED_STATUSES)
+  };
+
+  const invoiceEl = document.getElementById('invoiceDash');
+  if (invoiceEl) {
+    invoiceEl.innerHTML = `
+      <h3 class="dash-title">Invoice Status</h3>
+      <div class="dash-cards">
+        ${dashCardHtml('sent', 'Invoice Sent', DASH_BUCKETS.sent.length, 'ok')}
+        ${dashCardHtml('pending', 'Pending', DASH_BUCKETS.pending.length, 'warn')}
+      </div>`;
+  }
+
+  const chargeEl = document.getElementById('chargeDash');
+  if (chargeEl) {
+    chargeEl.innerHTML = `
+      <h3 class="dash-title">Card Charge Status</h3>
+      <div class="dash-cards">
+        ${dashCardHtml('charged', 'Already Charged', DASH_BUCKETS.charged.length, 'ok')}
+        ${dashCardHtml('chargePending', 'Charge Pending', DASH_BUCKETS.chargePending.length, 'warn')}
+        ${dashCardHtml('failed', 'Failed', DASH_BUCKETS.failed.length, 'danger')}
+      </div>`;
+  }
+}
+
+function dashCardHtml(key, cardLabel, count, tone) {
+  return `<div class="dash-card ${tone}" onclick="openStatusDialog('${key}', '${escapeAttr(cardLabel)}')">
+    <div class="dash-count">${count}</div>
+    <div class="dash-label">${escapeHtml(cardLabel)}</div>
+  </div>`;
+}
+
+function openStatusDialog(key, dialogLabel) {
+  const rows = DASH_BUCKETS[key] || [];
+  document.getElementById('statusDialogTitle').textContent = dialogLabel + ' (' + rows.length + ')';
+
+  let html = '<div class="status-dialog-table-wrap"><table class="status-dialog-table"><thead><tr>';
+  html += '<th>Client</th><th>Email</th><th>Payment Method</th><th>Total Invoice ($)</th><th>Invoice Status</th>';
+  html += '</tr></thead><tbody>';
+  if (rows.length === 0) {
+    html += '<tr><td colspan="5" class="status-dialog-empty">No practices in this category.</td></tr>';
+  } else {
+    rows.forEach(c => {
+      html += `<tr>
+        <td>${escapeHtml(c['Client Name'] || '')}</td>
+        <td>${escapeHtml(c['Email'] || '')}</td>
+        <td>${escapeHtml(c['Payment Method'] || '—')}</td>
+        <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
+        <td>${statusStamp(c['Invoice Status'])}</td>
+      </tr>`;
+    });
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('statusDialogBody').innerHTML = html;
+  document.getElementById('statusDialogOverlay').classList.add('open');
+
+  document.getElementById('statusDialogExcelBtn').onclick = () => exportRowsToExcel(rows, dialogLabel);
+}
+
+function closeStatusDialog() {
+  document.getElementById('statusDialogOverlay').classList.remove('open');
+}
+
+function exportRowsToExcel(rows, dialogLabel) {
+  if (typeof XLSX === 'undefined') {
+    toast('Excel export library failed to load.', 'error');
+    return;
+  }
+  const data = rows.map(c => ({
+    'Client Name': c['Client Name'] || '',
+    'Email': c['Email'] || '',
+    'Payment Method': c['Payment Method'] || '',
+    'Total Invoice ($)': c['Total Invoice ($)'] || '',
+    'Invoice Status': c['Invoice Status'] || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  const sheetName = (dialogLabel || 'Sheet1').substring(0, 28);
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  const fileName = 'billing-' + (dialogLabel || 'export').toLowerCase().replace(/\s+/g, '-') + '-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, fileName);
 }
 
 // ============================================================
@@ -312,20 +487,37 @@ function bindUI() {
   document.getElementById('modalOverlay').addEventListener('click', e => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
+
+  const searchInput = document.getElementById('practiceSearch');
+  if (searchInput) {
+    searchInput.addEventListener('input', e => {
+      STATE.searchTerm = e.target.value;
+      renderTable();
+    });
+  }
+
+  const statusDialogCloseBtn = document.getElementById('statusDialogCloseBtn');
+  if (statusDialogCloseBtn) statusDialogCloseBtn.addEventListener('click', closeStatusDialog);
+  const statusDialogOverlay = document.getElementById('statusDialogOverlay');
+  if (statusDialogOverlay) {
+    statusDialogOverlay.addEventListener('click', e => {
+      if (e.target.id === 'statusDialogOverlay') closeStatusDialog();
+    });
+  }
 }
 
 function openAddModal() {
   const fields = REQUIRED_FIELDS.concat(OPTIONAL_ADD_FIELDS);
   renderModal({
     title: 'Add Practice',
-    sub: 'Naya client add karein. SR# khud-ba-khud generate hoga.',
+    sub: 'Add a new client. SR# will be generated automatically.',
     fields,
     values: {},
     onSubmit: async (values) => {
       const res = await apiCall('addPractice', { data: values });
       if (res.success) {
         closeModal();
-        toast('Practice add ho gayi.', 'ok');
+        toast('Practice added.', 'ok');
         loadClients();
       } else {
         setModalMsg(res.error, 'error');
@@ -349,7 +541,7 @@ function openEditModal(row) {
       const res = await apiCall('updateClient', { row, data: values });
       if (res.success) {
         closeModal();
-        toast('Update ho gaya.', 'ok');
+        toast('Update saved.', 'ok');
         loadClients();
       } else {
         setModalMsg(res.error, 'error');
@@ -365,8 +557,8 @@ function formatFieldValue(key, val) {
     if (s.includes('%')) return s;
     const num = parseFloat(s);
     if (!isNaN(num)) {
-      // Sheet mein rate fraction (0.03) ya plain number (3) dono ho sakte hain —
-      // fraction < 1 ko percent mein convert kar dete hain taake sahi dikhe.
+      // Rate in the sheet may be a fraction (0.03) or a plain number (3) —
+      // fractions under 1 get converted to a percentage so it displays correctly.
       const pct = (num > 0 && num < 1) ? num * 100 : num;
       return (Math.round(pct * 100) / 100) + '%';
     }
@@ -374,8 +566,8 @@ function formatFieldValue(key, val) {
   return val;
 }
 
-// Ye fields lockedFields mode mein bhi hamesha editable rehte hain
-const ALWAYS_EDITABLE_FIELDS = ['Payment Method'];
+// These fields stay editable even in "lockedFields" mode
+const ALWAYS_EDITABLE_FIELDS = ['Payment Method', 'Billing Amount ($)', 'Benefits Amount ($)'];
 
 function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedFields }) {
   document.getElementById('modalTitle').textContent = title;
@@ -407,12 +599,12 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
   html += '</div>';
 
   if (lockedFields) {
-    html += `<p class="lock-note">🔒 Ye tafseelat "Add Practice" ke waqt set hoti hain aur yahan se edit nahi hoti. Sirf Payment Method, status (table se) aur services (neeche) yahan badli ja sakti hain.</p>`;
+    html += `<p class="lock-note">🔒 These details are set when the practice is added and can't be edited here. Only Payment Method, Billing/Benefits Amount, status (from the table) and services (below) can be changed here.</p>`;
   }
 
   html += '<div class="section-label">Additional Services</div>';
   html += '<div id="serviceBlocks">';
-  modalServiceSlots = getServiceNumbers_(values); // is client ki jitni services already hain
+  modalServiceSlots = getServiceNumbers_(values); // service numbers this client already has
   modalServiceSlots.forEach(n => {
     html += serviceBlockHtml(n, {
       name: values['Additional Service ' + n] || '',
@@ -459,11 +651,12 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-// Modal khulne par is client ki maujooda services ke numbers yahan track hote hain
-// (e.g. [1,2]) — "+ Add Service" click par isme naya number push hota hai.
+// Tracks the service numbers this client currently has while the modal is open
+// (e.g. [1,2]) — clicking "+ Add Service" pushes a new number onto it.
 let modalServiceSlots = [];
 
 function serviceBlockHtml(n, vals) {
+  const typeVal = String(vals.type || '').trim().toLowerCase();
   return `
   <div class="service-block" id="serviceBlock-${n}">
     <div class="service-block-head">
@@ -483,8 +676,8 @@ function serviceBlockHtml(n, vals) {
         <label>Type</label>
         <select data-field="Type ${n}">
           <option value="">—</option>
-          <option value="fixed" ${vals.type === 'fixed' ? 'selected' : ''}>Fixed ($)</option>
-          <option value="percent" ${vals.type === 'percent' ? 'selected' : ''}>Percent (% of invoice)</option>
+          <option value="fixed" ${typeVal === 'fixed' ? 'selected' : ''}>Fixed ($)</option>
+          <option value="percent" ${typeVal === 'percent' ? 'selected' : ''}>Percent (% of invoice)</option>
         </select>
       </div>
     </div>
@@ -504,8 +697,8 @@ function removeServiceBlock(n) {
   const block = document.getElementById('serviceBlock-' + n);
   if (block) block.remove();
   modalServiceSlots = modalServiceSlots.filter(x => x !== n);
-  // Backend ko batana zaroori hai ke ye service ab hata di gayi hai,
-  // warna sheet mein purani value reh jayegi — chhupa hua input rakh dete hain.
+  // The backend needs to be told this service was removed, otherwise the old
+  // value would stay in the sheet — a hidden input takes care of that.
   const wrap = document.getElementById('modalBody');
   const marker = document.createElement('input');
   marker.type = 'hidden';
@@ -534,10 +727,10 @@ function setModalMsg(msg, type) {
 // ROW ACTIONS
 // ============================================================
 async function deleteClient(row, name) {
-  if (!confirm(`"${name}" ko delete karna hai? Ye sheet se row hata dega.`)) return false;
+  if (!confirm(`Delete "${name}"? This will remove the row from the sheet.`)) return false;
   const res = await apiCall('deleteClient', { row });
   if (res.success) {
-    toast('Delete ho gaya.', 'ok');
+    toast('Deleted.', 'ok');
     loadClients();
     return true;
   } else {
@@ -547,11 +740,11 @@ async function deleteClient(row, name) {
 }
 
 async function sendInvoice(row, name) {
-  if (!confirm(`"${name}" ko invoice send karna hai (Stripe ke through)?`)) return false;
-  toast('Invoice bheja ja raha hai…');
+  if (!confirm(`Send an invoice to "${name}" (via Stripe)?`)) return false;
+  toast('Sending invoice…');
   const res = await apiCall('sendInvoiceForClient', { row });
   if (res.success) {
-    toast('Invoice process ho gaya.', 'ok');
+    toast('Invoice processed.', 'ok');
     loadClients();
     return true;
   } else {
