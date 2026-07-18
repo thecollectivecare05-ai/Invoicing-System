@@ -686,51 +686,46 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
 
   const footer = document.getElementById('modalFooter');
   let footerHtml = '';
-  if (rowActions) {
-    footerHtml += `<button class="btn btn-danger" id="modalDeleteBtn">Delete</button>`;
-    footerHtml += `<button class="btn btn-teal" id="modalSendInvoiceBtn">Send Invoice</button>`;
-    footerHtml += `<span style="flex:1"></span>`;
-  }
+  // NOTE: Delete aur Send Invoice buttons yahan se hata diye gaye hain.
+  // Send Invoice ab ek alag bulk function se hoga (jo baad mein end pe
+  // add hogi aur sab clients ko ek sath process karegi) — is modal se
+  // ab sirf plain edit/save hota hai.
   footerHtml += `
     <button class="btn btn-ghost" id="modalCancelBtn">Cancel</button>
     <button class="btn btn-primary" id="modalSaveBtn">Save</button>
   `;
   footer.innerHTML = footerHtml;
-  if (rowActions) {
-    document.getElementById('modalDeleteBtn').addEventListener('click', async () => {
-      const ok = await deleteClient(rowActions.row, rowActions.name);
-      if (ok) closeModal();
-    });
-    document.getElementById('modalSendInvoiceBtn').addEventListener('click', async () => {
-      const ok = await sendInvoice(rowActions.row, rowActions.name);
-      if (ok) closeModal();
-    });
-  }
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
-  document.getElementById('modalSaveBtn').addEventListener('click', () => {
+  document.getElementById('modalSaveBtn').addEventListener('click', async () => {
     const inputs = document.querySelectorAll('[data-field]');
     const values = {};
     inputs.forEach(el => values[el.dataset.field] = el.value.trim());
+    // Billing Amount ($) / Benefits Amount ($) / Total Invoice ($) are not
+    // sent from here — the backend (restoreRowFormulas_ in WebApp.gs) sets
+    // live formulas for all three right after this save, using the
+    // sheet's actual column layout (more reliable than guessing it here).
 
-    // Billing Amount ($) / Benefits Amount ($) are locked display divs (no
-    // data-field). Instead of sending a static calculated number, send the
-    // ACTUAL SHEET FORMULA string (same one Stripe.gs/Code.gs itself uses:
-    // J=IFERROR(H*D,0), K=IFERROR(F*I,0)). Range.setValue() in Apps Script
-    // treats a string starting with "=" as a real formula, so this puts a
-    // live formula back in the cell — it'll keep auto-recalculating even if
-    // Collection/Rate/Benefits are later edited directly in the sheet, not
-    // just through this dashboard.
-    if (rowActions && rowActions.row) {
-      const r = rowActions.row;
-      if (document.querySelector('[data-live="Billing Amount ($)"]')) {
-        values['Billing Amount ($)'] = `=IFERROR(H${r}*D${r},0)`;
-      }
-      if (document.querySelector('[data-live="Benefits Amount ($)"]')) {
-        values['Benefits Amount ($)'] = `=IFERROR(F${r}*I${r},0)`;
+    const saveBtn = document.getElementById('modalSaveBtn');
+    const cancelBtn = document.getElementById('modalCancelBtn');
+    saveBtn.disabled = true;
+    cancelBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+    setModalMsg('Saving, please wait…', 'saving');
+
+    try {
+      await onSubmit(values);
+    } finally {
+      // Agar save fail hua to modal khula rehta hai (onSubmit apna error
+      // message already dikha chuka hoga) — is case mein button wapis
+      // normal/enabled kar dein taake dobara try kiya ja sake. Agar save
+      // kamyab hua to onSubmit modal already band kar chuka hoga, is liye
+      // ye check us waqt kuch nahi karega.
+      if (document.getElementById('modalOverlay').classList.contains('open')) {
+        saveBtn.disabled = false;
+        cancelBtn.disabled = false;
+        saveBtn.textContent = 'Save';
       }
     }
-
-    onSubmit(values);
   });
 
   document.getElementById('modalOverlay').classList.add('open');
