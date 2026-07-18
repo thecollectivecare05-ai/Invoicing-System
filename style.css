@@ -276,8 +276,7 @@ tbody tr:hover { background: #FAFBFD; }
   background: var(--paper-raised);
   z-index: 2;
 }
-.sticky-1 { left: 0; width: 56px; text-align: center; }
-td.sticky-1 { display: flex; gap: 2px; align-items: center; justify-content: center; }
+.sticky-1 { left: 0; width: 56px; text-align: center; vertical-align: middle; }
 .sticky-2 { left: 56px; box-shadow: 2px 0 4px -2px rgba(20,33,61,0.15); }
 thead .sticky-col { z-index: 3; background: #FAFAFC; }
 tbody tr:hover .sticky-col { background: #FAFBFD; }
@@ -290,9 +289,13 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
   color: var(--ink-soft);
   width: 22px;
   height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
 }
 .expand-btn:hover, .edit-icon-btn:hover { color: var(--ink); }
-.edit-icon-btn { font-size: 12px; }
+.edit-icon-btn { font-size: 12px; margin-left: 2px; }
 
 /* ---------- Expandable details row ---------- */
 .details-row td {
@@ -404,6 +407,26 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
 }
 .field input:focus, .field select:focus { border-color: var(--focus); }
 
+.field-readonly {
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 13.5px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f2f2f0;
+  color: var(--ink-soft);
+}
+
+.lock-note {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: #f2f2f0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 4px 0 18px;
+}
+
 .section-label {
   font-size: 11px;
   font-weight: 600;
@@ -416,6 +439,7 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
 }
 
 .service-block {
+  display: flex;
   flex-direction: column;
   gap: 10px;
   background: var(--paper);
