@@ -711,6 +711,16 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
     const inputs = document.querySelectorAll('[data-field]');
     const values = {};
     inputs.forEach(el => values[el.dataset.field] = el.value.trim());
+
+    // Billing Amount ($) / Benefits Amount ($) are locked display divs (no
+    // data-field), so they're never picked up above. Send their live-calculated
+    // value explicitly — this overwrites whatever (possibly wrong, or blank)
+    // value is currently sitting in the sheet for this row.
+    const billingDisplay = document.querySelector('[data-live="Billing Amount ($)"]');
+    const benefitsDisplay = document.querySelector('[data-live="Benefits Amount ($)"]');
+    if (billingDisplay) values['Billing Amount ($)'] = billingDisplay.textContent.trim();
+    if (benefitsDisplay) values['Benefits Amount ($)'] = benefitsDisplay.textContent.trim();
+
     onSubmit(values);
   });
 
