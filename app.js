@@ -12,9 +12,22 @@ const MAX_SERVICES = 2; // backend (Stripe.gs) abhi sirf 2 additional services s
 
 // Sheet header -> friendlier display label (sheet ka actual column name nahi badalta)
 const LABELS = {
-  'Practice Collection Month': 'Invoice Month'
+  'Practice Collection Month': 'Invoice Month',
+  'Monthly Minimum (Billing)': 'Minimum Amount'
 };
 function label(key) { return LABELS[key] || key; }
+
+// Invoice Status ke sab real statuses (jo sheet mein manually ya scripts se lagte hain)
+// Pehla '' wala hamesha blank/unselected default hai.
+const INVOICE_STATUS_OPTIONS = [
+  'Need to Send Invoice',
+  'Manual Invoice-Check Sheet',
+  'Sent',
+  'Paid',
+  'Already Paid',
+  'ACH-Initiated',
+  'Failed'
+];
 
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
@@ -34,12 +47,15 @@ const OPTIONAL_ADD_FIELDS = [
 const EDIT_ONLY_FIELDS = [
   { key: 'Practice Monthly Collection ($)', type: 'number' },
   { key: 'No. of Verified Benefits', type: 'number' },
-  { key: 'Invoice Status', type: 'select', options: ['Need to Send Invoice', 'Sent', 'Paid', 'Failed'] }
+  { key: 'Invoice Status', type: 'select', options: INVOICE_STATUS_OPTIONS }
 ];
 
-// Main table pe sirf ye 2 extra columns (Client/SR#/Status ke ilawa)
+// Main table pe ye columns (Client/Status/Actions ke ilawa) — SR# ab nahi dikhega
 const SUMMARY_COLUMNS = [
   'Practice Collection Month',
+  'Monthly Minimum (Billing)',
+  'Billing Amount ($)',
+  'Benefits Amount ($)',
   'Total Invoice ($)'
 ];
 
@@ -47,9 +63,7 @@ const SUMMARY_COLUMNS = [
 const BASE_DETAIL_COLUMNS = [
   'Payment Method',
   'Practice Monthly Collection ($)',
-  'No. of Verified Benefits',
-  'Billing Amount ($)',
-  'Benefits Amount ($)'
+  'No. of Verified Benefits'
 ];
 
 // ============================================================
@@ -178,7 +192,6 @@ function renderTable() {
   let html = '<table><thead><tr>';
   html += '<th class="sticky-col sticky-1"></th>';
   html += '<th class="sticky-col sticky-2">Client</th>';
-  html += '<th>SR#</th>';
   SUMMARY_COLUMNS.forEach(c => html += `<th>${escapeHtml(label(c))}</th>`);
   html += '<th>Invoice Status</th>';
   if (isEditor) html += '<th>Actions</th>';
@@ -188,9 +201,8 @@ function renderTable() {
     html += `<tr>`;
     html += `<td class="sticky-col sticky-1"><button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button></td>`;
     html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
-    html += `<td class="sr-cell">${escapeHtml(c['SR#'] || '')}</td>`;
     SUMMARY_COLUMNS.forEach(col => {
-      const isMoney = /\(\$\)/.test(col);
+      const isMoney = /\(\$\)/.test(col) || col === 'Monthly Minimum (Billing)';
       html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(c[col] != null ? c[col] : '')}</td>`;
     });
     html += `<td>${statusStamp(c['Invoice Status'])}</td>`;
@@ -203,7 +215,7 @@ function renderTable() {
     }
     html += '</tr>';
 
-    const colSpan = 4 + SUMMARY_COLUMNS.length + (isEditor ? 1 : 0);
+    const colSpan = 3 + SUMMARY_COLUMNS.length + (isEditor ? 1 : 0);
     const detailCols = BASE_DETAIL_COLUMNS.slice();
     for (let n = 1; n <= MAX_SERVICES; n++) {
       if (c['Additional Service ' + n]) {
