@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ur">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -25,8 +25,8 @@
 <!-- SIGN-IN GATE -->
 <section class="gate" id="gate">
   <div class="gate-mark">— Restricted Access —</div>
-  <h1>Sirf wo log dekh/edit kar sakte hain jinko Email + Access Code diya gaya hai</h1>
-  <p>Apna email aur access code daalein. Ye code aapko dene wale (admin) ne "Users" sheet mein set kiya hai.</p>
+  <h1>Only people who have been given an Email + Access Code can view/edit</h1>
+  <p>Enter your email and access code. This code is set for you by the admin in the "Users" sheet.</p>
   <form class="login-form" id="loginForm">
     <div class="field">
       <label>Email</label>
@@ -43,15 +43,32 @@
 
 <!-- MAIN APP -->
 <main id="mainApp">
-  <div class="toolbar">
-    <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
-    <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
+  <div class="content-layout">
+    <div class="table-col">
+      <div class="toolbar">
+        <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
+        <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
+      </div>
+
+      <div class="filter-bar">
+        <input type="text" id="practiceSearch" class="search-input" placeholder="🔍 Search a practice by name or email to filter / edit…">
+      </div>
+
+      <div class="table-wrap" id="tableWrap"></div>
+    </div>
+
+    <aside class="summary-col">
+      <div class="summary-card" id="summaryCard"></div>
+    </aside>
   </div>
 
-  <div class="table-wrap" id="tableWrap"></div>
+  <section class="dashboards">
+    <div class="dash-block" id="invoiceDash"></div>
+    <div class="dash-block" id="chargeDash"></div>
+  </section>
 </main>
 
-<!-- MODAL -->
+<!-- MODAL: Add / Edit Practice -->
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal">
     <h3 id="modalTitle">Add Practice</h3>
@@ -61,8 +78,21 @@
   </div>
 </div>
 
+<!-- MODAL: Status detail dialog (Invoice Sent/Pending, Charged/Pending/Failed) -->
+<div class="modal-overlay" id="statusDialogOverlay">
+  <div class="modal modal-wide">
+    <h3 id="statusDialogTitle">Status</h3>
+    <div id="statusDialogBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="statusDialogCloseBtn">Close</button>
+      <button class="btn btn-primary" id="statusDialogExcelBtn">⬇ Download Excel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>
