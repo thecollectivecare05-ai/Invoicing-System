@@ -266,15 +266,32 @@ function renderTable() {
   wrap.innerHTML = html;
 }
 
-// Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" is computed
-// on the fly (sum of this row's additional services), everything else comes
-// straight from the sheet.
+// Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" and
+// "Total Invoice ($)" are computed on the fly (see computeTotalInvoice below)
+// so they always match each other, even if the sheet's own Total Invoice
+// formula hasn't been updated to include additional services yet.
+// Everything else comes straight from the sheet.
 function getSummaryCellValue(c, col) {
   if (col === 'Additional Amount ($)') {
     const nums = getServiceNumbers_(c);
     return nums.length ? servicesTotal(c, nums).toFixed(2) : '0.00';
   }
+  if (col === 'Total Invoice ($)') {
+    return computeTotalInvoice(c).toFixed(2);
+  }
   return c[col] != null ? c[col] : '';
+}
+
+// Billing Amount + Benefits Amount + (sum of all Additional Services for this
+// row). Calculated here in the frontend rather than trusting the sheet's own
+// "Total Invoice ($)" column, so it can't drift out of sync with the
+// Additional Amount shown next to it.
+function computeTotalInvoice(c) {
+  const billing = parseFloat(c['Billing Amount ($)']) || 0;
+  const benefits = parseFloat(c['Benefits Amount ($)']) || 0;
+  const nums = getServiceNumbers_(c);
+  const additional = nums.length ? servicesTotal(c, nums) : 0;
+  return billing + benefits + additional;
 }
 
 // Works out each additional service's amount: "fixed" type uses the full Rate,
@@ -349,7 +366,7 @@ function computeSummaryByPractice() {
   const map = {};
   STATE.clients.forEach(c => {
     const key = c['Client Name'] || '(No name)';
-    const amt = parseFloat(c['Total Invoice ($)']) || 0;
+    const amt = computeTotalInvoice(c);
     map[key] = (map[key] || 0) + amt;
   });
   return Object.keys(map).sort((a, b) => a.localeCompare(b)).map(name => ({ name, amount: map[name] }));
@@ -442,7 +459,7 @@ function openStatusDialog(key, dialogLabel) {
         <td>${escapeHtml(c['Client Name'] || '')}</td>
         <td>${escapeHtml(c['Email'] || '')}</td>
         <td>${escapeHtml(c['Payment Method'] || '—')}</td>
-        <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
+        <td class="money-cell">${computeTotalInvoice(c).toFixed(2)}</td>
         <td>${statusStamp(c['Invoice Status'])}</td>
       </tr>`;
     });
@@ -467,7 +484,7 @@ function exportRowsToExcel(rows, dialogLabel) {
     'Client Name': c['Client Name'] || '',
     'Email': c['Email'] || '',
     'Payment Method': c['Payment Method'] || '',
-    'Total Invoice ($)': c['Total Invoice ($)'] || '',
+    'Total Invoice ($)': computeTotalInvoice(c).toFixed(2),
     'Invoice Status': c['Invoice Status'] || ''
   }));
   const ws = XLSX.utils.json_to_sheet(data);
