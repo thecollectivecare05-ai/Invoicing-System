@@ -8,7 +8,16 @@ let STATE = {
   clients: []
 };
 
-const MAX_SERVICES = 2; // backend (Stripe.gs) abhi sirf 2 additional services support karta hai
+// Additional Services ki koi fixed limit nahi — jitni add karni hon, "+ Add Service"
+// se add hoti rehti hain (sheet mein khud-ba-khud naye columns ban jate hain).
+function getServiceNumbers_(obj) {
+  const nums = [];
+  Object.keys(obj || {}).forEach(k => {
+    const m = k.match(/^Additional Service (\d+)$/);
+    if (m && String(obj[k] || '').trim() !== '') nums.push(parseInt(m[1], 10));
+  });
+  return nums.sort((a, b) => a - b);
+}
 
 // Sheet header -> friendlier display label (sheet ka actual column name nahi badalta)
 const LABELS = {
@@ -212,20 +221,38 @@ function renderTable() {
 
     const colSpan = 3 + SUMMARY_COLUMNS.length;
     const detailCols = BASE_DETAIL_COLUMNS.slice();
-    for (let n = 1; n <= MAX_SERVICES; n++) {
-      if (c['Additional Service ' + n]) {
-        detailCols.push('Additional Service ' + n, 'Rate ' + n, 'Type ' + n);
-      }
-    }
+    const serviceNums = getServiceNumbers_(c);
+    serviceNums.forEach(n => detailCols.push('Additional Service ' + n, 'Rate ' + n, 'Type ' + n));
+
     html += `<tr class="details-row" id="detailsRow-${c.row}" style="display:none;"><td colspan="${colSpan}"><div class="details-grid">`;
     detailCols.forEach(col => {
       html += `<div class="detail-item"><span class="detail-label">${escapeHtml(label(col))}</span><span class="detail-value">${escapeHtml(c[col] != null && c[col] !== '' ? c[col] : '—')}</span></div>`;
     });
+    if (serviceNums.length > 0) {
+      html += `<div class="detail-item"><span class="detail-label">Additional Services Total</span><span class="detail-value">$${servicesTotal(c, serviceNums).toFixed(2)}</span></div>`;
+    }
     html += `</div></td></tr>`;
   });
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+// Har additional service ka amount nikaalta hai: "fixed" type ka poora Rate,
+// "percent" type ka Rate% of (Billing Amount + Benefits Amount). Isi row ke
+// liye — agar kisi client ki isi email par 2+ rows same invoice mein group
+// hoti hain to Stripe pe actual charged amount thoda alag ho sakta hai
+// (wo cumulative total use karta hai), yahan sirf isi row ka estimate hai.
+function servicesTotal(c, serviceNums) {
+  const base = (parseFloat(c['Billing Amount ($)']) || 0) + (parseFloat(c['Benefits Amount ($)']) || 0);
+  let total = 0;
+  serviceNums.forEach(n => {
+    const rate = parseFloat(c['Rate ' + n]) || 0;
+    const type = String(c['Type ' + n] || '').trim().toLowerCase();
+    if (type === 'fixed') total += rate;
+    else if (type === 'percent') total += base * (rate / 100);
+  });
+  return total;
 }
 
 function toggleDetails(row) {
@@ -317,6 +344,7 @@ function openEditModal(row) {
     fields,
     values: client,
     rowActions: { row, name: client['Client Name'] },
+    lockedFields: true,
     onSubmit: async (values) => {
       const res = await apiCall('updateClient', { row, data: values });
       if (res.success) {
@@ -330,7 +358,26 @@ function openEditModal(row) {
   });
 }
 
-function renderModal({ title, sub, fields, values, onSubmit, rowActions }) {
+function formatFieldValue(key, val) {
+  if (val == null || val === '') return '';
+  if (key === 'Medical Billing Rate (%)') {
+    const s = String(val).trim();
+    if (s.includes('%')) return s;
+    const num = parseFloat(s);
+    if (!isNaN(num)) {
+      // Sheet mein rate fraction (0.03) ya plain number (3) dono ho sakte hain —
+      // fraction < 1 ko percent mein convert kar dete hain taake sahi dikhe.
+      const pct = (num > 0 && num < 1) ? num * 100 : num;
+      return (Math.round(pct * 100) / 100) + '%';
+    }
+  }
+  return val;
+}
+
+// Ye fields lockedFields mode mein bhi hamesha editable rehte hain
+const ALWAYS_EDITABLE_FIELDS = ['Payment Method'];
+
+function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedFields }) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalSub').textContent = sub;
 
@@ -339,9 +386,15 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions }) {
     const val = values[f.key] != null ? values[f.key] : '';
     const isRequired = REQUIRED_FIELDS.some(rf => rf.key === f.key);
     const fullWidth = f.key === 'Special Instructions';
+    const isLocked = lockedFields && !ALWAYS_EDITABLE_FIELDS.includes(f.key);
     html += `<div class="field ${fullWidth ? 'full' : ''}">
       <label>${escapeHtml(label(f.key))} ${isRequired ? '<span class="req">*</span>' : ''}</label>`;
-    if (f.type === 'select') {
+    if (isLocked) {
+      const display = f.type === 'select'
+        ? (val || '—')
+        : (formatFieldValue(f.key, val) || '—');
+      html += `<div class="field-readonly">${escapeHtml(display)}</div>`;
+    } else if (f.type === 'select') {
       html += `<select data-field="${escapeAttr(f.key)}">`;
       html += `<option value="">—</option>`;
       f.options.forEach(o => html += `<option value="${escapeAttr(o)}" ${val === o ? 'selected' : ''}>${escapeHtml(o)}</option>`);
@@ -353,23 +406,25 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions }) {
   });
   html += '</div>';
 
+  if (lockedFields) {
+    html += `<p class="lock-note">🔒 Ye tafseelat "Add Practice" ke waqt set hoti hain aur yahan se edit nahi hoti. Sirf Payment Method, status (table se) aur services (neeche) yahan badli ja sakti hain.</p>`;
+  }
+
   html += '<div class="section-label">Additional Services</div>';
   html += '<div id="serviceBlocks">';
-  for (let n = 1; n <= MAX_SERVICES; n++) {
-    const hasVal = !!values['Additional Service ' + n];
+  modalServiceSlots = getServiceNumbers_(values); // is client ki jitni services already hain
+  modalServiceSlots.forEach(n => {
     html += serviceBlockHtml(n, {
       name: values['Additional Service ' + n] || '',
       rate: values['Rate ' + n] || '',
       type: values['Type ' + n] || ''
-    }, hasVal);
-  }
+    });
+  });
   html += '</div>';
   html += '<button type="button" class="btn btn-ghost btn-small" id="addServiceBtn" onclick="addServiceBlock()">+ Add Service</button>';
 
   html += '<div class="modal-msg" id="modalMsg"></div>';
   document.getElementById('modalBody').innerHTML = html;
-
-  updateAddServiceBtn();
 
   const footer = document.getElementById('modalFooter');
   let footerHtml = '';
@@ -404,9 +459,13 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions }) {
   document.getElementById('modalOverlay').classList.add('open');
 }
 
-function serviceBlockHtml(n, vals, visible) {
+// Modal khulne par is client ki maujooda services ke numbers yahan track hote hain
+// (e.g. [1,2]) — "+ Add Service" click par isme naya number push hota hai.
+let modalServiceSlots = [];
+
+function serviceBlockHtml(n, vals) {
   return `
-  <div class="service-block" id="serviceBlock-${n}" style="display:${visible ? 'flex' : 'none'}">
+  <div class="service-block" id="serviceBlock-${n}">
     <div class="service-block-head">
       <span>Service ${n}</span>
       <button type="button" class="remove-service-btn" onclick="removeServiceBlock(${n})">✕ Remove</button>
@@ -433,35 +492,32 @@ function serviceBlockHtml(n, vals, visible) {
 }
 
 function addServiceBlock() {
-  for (let n = 1; n <= MAX_SERVICES; n++) {
-    const block = document.getElementById('serviceBlock-' + n);
-    if (block && block.style.display === 'none') {
-      block.style.display = 'flex';
-      const nameInput = block.querySelector('input[data-field^="Additional Service"]');
-      if (nameInput) nameInput.focus();
-      break;
-    }
-  }
-  updateAddServiceBtn();
+  const nextN = (modalServiceSlots.length ? Math.max(...modalServiceSlots) : 0) + 1;
+  modalServiceSlots.push(nextN);
+  const container = document.getElementById('serviceBlocks');
+  container.insertAdjacentHTML('beforeend', serviceBlockHtml(nextN, { name: '', rate: '', type: '' }));
+  const nameInput = document.querySelector(`#serviceBlock-${nextN} input[data-field^="Additional Service"]`);
+  if (nameInput) nameInput.focus();
 }
 
 function removeServiceBlock(n) {
   const block = document.getElementById('serviceBlock-' + n);
-  if (!block) return;
-  block.querySelectorAll('[data-field]').forEach(el => el.value = '');
-  block.style.display = 'none';
-  updateAddServiceBtn();
-}
-
-function updateAddServiceBtn() {
-  const btn = document.getElementById('addServiceBtn');
-  if (!btn) return;
-  let anyHidden = false;
-  for (let n = 1; n <= MAX_SERVICES; n++) {
-    const block = document.getElementById('serviceBlock-' + n);
-    if (block && block.style.display === 'none') anyHidden = true;
-  }
-  btn.style.display = anyHidden ? 'inline-flex' : 'none';
+  if (block) block.remove();
+  modalServiceSlots = modalServiceSlots.filter(x => x !== n);
+  // Backend ko batana zaroori hai ke ye service ab hata di gayi hai,
+  // warna sheet mein purani value reh jayegi — chhupa hua input rakh dete hain.
+  const wrap = document.getElementById('modalBody');
+  const marker = document.createElement('input');
+  marker.type = 'hidden';
+  marker.dataset.field = 'Additional Service ' + n;
+  marker.value = '';
+  wrap.appendChild(marker);
+  const rateMarker = marker.cloneNode();
+  rateMarker.dataset.field = 'Rate ' + n;
+  wrap.appendChild(rateMarker);
+  const typeMarker = marker.cloneNode();
+  typeMarker.dataset.field = 'Type ' + n;
+  wrap.appendChild(typeMarker);
 }
 
 function closeModal() {
