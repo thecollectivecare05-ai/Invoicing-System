@@ -713,13 +713,22 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
     inputs.forEach(el => values[el.dataset.field] = el.value.trim());
 
     // Billing Amount ($) / Benefits Amount ($) are locked display divs (no
-    // data-field), so they're never picked up above. Send their live-calculated
-    // value explicitly — this overwrites whatever (possibly wrong, or blank)
-    // value is currently sitting in the sheet for this row.
-    const billingDisplay = document.querySelector('[data-live="Billing Amount ($)"]');
-    const benefitsDisplay = document.querySelector('[data-live="Benefits Amount ($)"]');
-    if (billingDisplay) values['Billing Amount ($)'] = billingDisplay.textContent.trim();
-    if (benefitsDisplay) values['Benefits Amount ($)'] = benefitsDisplay.textContent.trim();
+    // data-field). Instead of sending a static calculated number, send the
+    // ACTUAL SHEET FORMULA string (same one Stripe.gs/Code.gs itself uses:
+    // J=IFERROR(H*D,0), K=IFERROR(F*I,0)). Range.setValue() in Apps Script
+    // treats a string starting with "=" as a real formula, so this puts a
+    // live formula back in the cell — it'll keep auto-recalculating even if
+    // Collection/Rate/Benefits are later edited directly in the sheet, not
+    // just through this dashboard.
+    if (rowActions && rowActions.row) {
+      const r = rowActions.row;
+      if (document.querySelector('[data-live="Billing Amount ($)"]')) {
+        values['Billing Amount ($)'] = `=IFERROR(H${r}*D${r},0)`;
+      }
+      if (document.querySelector('[data-live="Benefits Amount ($)"]')) {
+        values['Benefits Amount ($)'] = `=IFERROR(F${r}*I${r},0)`;
+      }
+    }
 
     onSubmit(values);
   });
