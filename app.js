@@ -8,6 +8,14 @@ let STATE = {
   clients: []
 };
 
+const MAX_SERVICES = 2; // backend (Stripe.gs) abhi sirf 2 additional services support karta hai
+
+// Sheet header -> friendlier display label (sheet ka actual column name nahi badalta)
+const LABELS = {
+  'Practice Collection Month': 'Invoice Month'
+};
+function label(key) { return LABELS[key] || key; }
+
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
   { key: 'Email', type: 'email' },
@@ -18,22 +26,30 @@ const REQUIRED_FIELDS = [
 
 const OPTIONAL_ADD_FIELDS = [
   { key: 'Payment Method', type: 'select', options: ['Credit/Debit Card', 'ACH', 'ACH and Credit/Debit'] },
+  { key: 'Practice Collection Month', type: 'text', hint: 'e.g. July 2026' },
   { key: 'Special Instructions', type: 'text' }
 ];
 
-const SUMMARY_COLUMNS = [
-  'Practice Collection Month',
-  'Total Invoice ($)',
-  'Payment Method'
+// Ye sirf edit modal mein extra dikhte hain (billing calculation ke liye zaroori data)
+const EDIT_ONLY_FIELDS = [
+  { key: 'Practice Monthly Collection ($)', type: 'number' },
+  { key: 'No. of Verified Benefits', type: 'number' },
+  { key: 'Invoice Status', type: 'select', options: ['Need to Send Invoice', 'Sent', 'Paid', 'Failed'] }
 ];
 
-const DETAIL_COLUMNS = [
+// Main table pe sirf ye 2 extra columns (Client/SR#/Status ke ilawa)
+const SUMMARY_COLUMNS = [
+  'Practice Collection Month',
+  'Total Invoice ($)'
+];
+
+// Expand (▸) karne par ye sab dikhte hain — services conditionally add hote hain neeche
+const BASE_DETAIL_COLUMNS = [
+  'Payment Method',
   'Practice Monthly Collection ($)',
   'No. of Verified Benefits',
   'Billing Amount ($)',
-  'Benefits Amount ($)',
-  'Additional Service 1', 'Rate 1', 'Type 1',
-  'Additional Service 2', 'Rate 2', 'Type 2'
+  'Benefits Amount ($)'
 ];
 
 // ============================================================
@@ -47,7 +63,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
 
-  // Agar pehle se session mein login hai to seedha dashboard try karein
   if (STATE.email && STATE.code && STATE.role) {
     enterDashboard();
   }
@@ -125,7 +140,7 @@ async function apiCall(action, extra) {
   const payload = Object.assign({ action, email: STATE.email, code: STATE.code }, extra || {});
   const resp = await fetch(CONFIG.WEB_APP_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // avoids CORS preflight
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
   });
   const data = await resp.json();
@@ -164,7 +179,7 @@ function renderTable() {
   html += '<th class="sticky-col sticky-1"></th>';
   html += '<th class="sticky-col sticky-2">Client</th>';
   html += '<th>SR#</th>';
-  SUMMARY_COLUMNS.forEach(c => html += `<th>${escapeHtml(c)}</th>`);
+  SUMMARY_COLUMNS.forEach(c => html += `<th>${escapeHtml(label(c))}</th>`);
   html += '<th>Invoice Status</th>';
   if (isEditor) html += '<th>Actions</th>';
   html += '</tr></thead><tbody>';
@@ -188,11 +203,16 @@ function renderTable() {
     }
     html += '</tr>';
 
-    // Hidden details row
     const colSpan = 4 + SUMMARY_COLUMNS.length + (isEditor ? 1 : 0);
+    const detailCols = BASE_DETAIL_COLUMNS.slice();
+    for (let n = 1; n <= MAX_SERVICES; n++) {
+      if (c['Additional Service ' + n]) {
+        detailCols.push('Additional Service ' + n, 'Rate ' + n, 'Type ' + n);
+      }
+    }
     html += `<tr class="details-row" id="detailsRow-${c.row}" style="display:none;"><td colspan="${colSpan}"><div class="details-grid">`;
-    DETAIL_COLUMNS.forEach(col => {
-      html += `<div class="detail-item"><span class="detail-label">${escapeHtml(col)}</span><span class="detail-value">${escapeHtml(c[col] != null && c[col] !== '' ? c[col] : '—')}</span></div>`;
+    detailCols.forEach(col => {
+      html += `<div class="detail-item"><span class="detail-label">${escapeHtml(label(col))}</span><span class="detail-value">${escapeHtml(c[col] != null && c[col] !== '' ? c[col] : '—')}</span></div>`;
     });
     html += `</div></td></tr>`;
   });
@@ -216,7 +236,7 @@ function statusStamp(status) {
 }
 
 // ============================================================
-// ADD PRACTICE MODAL
+// ADD / EDIT MODAL
 // ============================================================
 function bindUI() {
   document.getElementById('signOutBtn').addEventListener('click', signOut);
@@ -249,12 +269,7 @@ function openAddModal() {
 function openEditModal(row) {
   const client = STATE.clients.find(c => c.row === row);
   if (!client) return;
-  const fields = REQUIRED_FIELDS.concat(OPTIONAL_ADD_FIELDS).concat([
-    { key: 'Practice Collection Month', type: 'text' },
-    { key: 'Practice Monthly Collection ($)', type: 'number' },
-    { key: 'No. of Verified Benefits', type: 'number' },
-    { key: 'Invoice Status', type: 'select', options: ['Need to Send Invoice', 'Sent', 'Paid', 'Failed'] }
-  ]);
+  const fields = REQUIRED_FIELDS.concat(OPTIONAL_ADD_FIELDS).concat(EDIT_ONLY_FIELDS);
   renderModal({
     title: 'Edit — ' + client['Client Name'],
     sub: 'SR# ' + client['SR#'],
@@ -283,7 +298,7 @@ function renderModal({ title, sub, fields, values, onSubmit }) {
     const isRequired = REQUIRED_FIELDS.some(rf => rf.key === f.key);
     const fullWidth = f.key === 'Special Instructions';
     html += `<div class="field ${fullWidth ? 'full' : ''}">
-      <label>${escapeHtml(f.key)} ${isRequired ? '<span class="req">*</span>' : ''}</label>`;
+      <label>${escapeHtml(label(f.key))} ${isRequired ? '<span class="req">*</span>' : ''}</label>`;
     if (f.type === 'select') {
       html += `<select data-field="${escapeAttr(f.key)}">`;
       html += `<option value="">—</option>`;
@@ -294,8 +309,25 @@ function renderModal({ title, sub, fields, values, onSubmit }) {
     }
     html += `</div>`;
   });
-  html += '</div><div class="modal-msg" id="modalMsg"></div>';
+  html += '</div>';
+
+  html += '<div class="section-label">Additional Services</div>';
+  html += '<div id="serviceBlocks">';
+  for (let n = 1; n <= MAX_SERVICES; n++) {
+    const hasVal = !!values['Additional Service ' + n];
+    html += serviceBlockHtml(n, {
+      name: values['Additional Service ' + n] || '',
+      rate: values['Rate ' + n] || '',
+      type: values['Type ' + n] || ''
+    }, hasVal);
+  }
+  html += '</div>';
+  html += '<button type="button" class="btn btn-ghost btn-small" id="addServiceBtn" onclick="addServiceBlock()">+ Add Service</button>';
+
+  html += '<div class="modal-msg" id="modalMsg"></div>';
   document.getElementById('modalBody').innerHTML = html;
+
+  updateAddServiceBtn();
 
   const footer = document.getElementById('modalFooter');
   footer.innerHTML = `
@@ -311,6 +343,66 @@ function renderModal({ title, sub, fields, values, onSubmit }) {
   });
 
   document.getElementById('modalOverlay').classList.add('open');
+}
+
+function serviceBlockHtml(n, vals, visible) {
+  return `
+  <div class="service-block" id="serviceBlock-${n}" style="display:${visible ? 'flex' : 'none'}">
+    <div class="service-block-head">
+      <span>Service ${n}</span>
+      <button type="button" class="remove-service-btn" onclick="removeServiceBlock(${n})">✕ Remove</button>
+    </div>
+    <div class="field-grid">
+      <div class="field full">
+        <label>Service Name</label>
+        <input data-field="Additional Service ${n}" type="text" value="${escapeAttr(vals.name)}" placeholder="e.g. Credentialing Fee">
+      </div>
+      <div class="field">
+        <label>Rate</label>
+        <input data-field="Rate ${n}" type="number" value="${escapeAttr(vals.rate)}" placeholder="e.g. 50">
+      </div>
+      <div class="field">
+        <label>Type</label>
+        <select data-field="Type ${n}">
+          <option value="">—</option>
+          <option value="fixed" ${vals.type === 'fixed' ? 'selected' : ''}>Fixed ($)</option>
+          <option value="percent" ${vals.type === 'percent' ? 'selected' : ''}>Percent (% of invoice)</option>
+        </select>
+      </div>
+    </div>
+  </div>`;
+}
+
+function addServiceBlock() {
+  for (let n = 1; n <= MAX_SERVICES; n++) {
+    const block = document.getElementById('serviceBlock-' + n);
+    if (block && block.style.display === 'none') {
+      block.style.display = 'flex';
+      const nameInput = block.querySelector('input[data-field^="Additional Service"]');
+      if (nameInput) nameInput.focus();
+      break;
+    }
+  }
+  updateAddServiceBtn();
+}
+
+function removeServiceBlock(n) {
+  const block = document.getElementById('serviceBlock-' + n);
+  if (!block) return;
+  block.querySelectorAll('[data-field]').forEach(el => el.value = '');
+  block.style.display = 'none';
+  updateAddServiceBtn();
+}
+
+function updateAddServiceBtn() {
+  const btn = document.getElementById('addServiceBtn');
+  if (!btn) return;
+  let anyHidden = false;
+  for (let n = 1; n <= MAX_SERVICES; n++) {
+    const block = document.getElementById('serviceBlock-' + n);
+    if (block && block.style.display === 'none') anyHidden = true;
+  }
+  btn.style.display = anyHidden ? 'inline-flex' : 'none';
 }
 
 function closeModal() {
