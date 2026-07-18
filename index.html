@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Billing Ledger</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="ledger-header">
+  <div class="ledger-title">
+    Client Billing Ledger
+    <span class="rule">Practices · Invoices · Stripe</span>
+  </div>
+  <div class="auth-zone" id="authZone" style="display:none;">
+    <div class="user-chip">
+      <span id="userEmail"></span>
+      <span class="role-tag" id="roleTag"></span>
+    </div>
+    <button class="signout-btn" id="signOutBtn">Sign out</button>
+  </div>
+</header>
+
+<!-- SIGN-IN GATE -->
+<section class="gate" id="gate">
+  <div class="gate-mark">— Restricted Access —</div>
+  <h1>Sirf wo log dekh/edit kar sakte hain jinko Email + Access Code diya gaya hai</h1>
+  <p>Apna email aur access code daalein. Ye code aapko dene wale (admin) ne "Users" sheet mein set kiya hai.</p>
+  <form class="login-form" id="loginForm">
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" required placeholder="you@example.com">
+    </div>
+    <div class="field">
+      <label>Access Code</label>
+      <input type="text" id="loginCode" required placeholder="Access code">
+    </div>
+    <button type="submit" class="btn btn-primary" id="loginBtn">Sign in</button>
+  </form>
+  <div class="gate-error" id="gateError" style="display:none;"></div>
+</section>
+
+<!-- MAIN APP -->
+<main id="mainApp">
+  <div class="toolbar">
+    <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
+    <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
+  </div>
+
+  <div class="table-wrap" id="tableWrap"></div>
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3 id="modalTitle">Add Practice</h3>
+    <p class="modal-sub" id="modalSub"></p>
+    <div id="modalBody"></div>
+    <div class="modal-footer" id="modalFooter"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
