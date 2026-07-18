@@ -21,14 +21,17 @@ const OPTIONAL_ADD_FIELDS = [
   { key: 'Special Instructions', type: 'text' }
 ];
 
-const LIST_COLUMNS = [
+const SUMMARY_COLUMNS = [
   'Practice Collection Month',
+  'Total Invoice ($)',
+  'Payment Method'
+];
+
+const DETAIL_COLUMNS = [
   'Practice Monthly Collection ($)',
   'No. of Verified Benefits',
   'Billing Amount ($)',
   'Benefits Amount ($)',
-  'Total Invoice ($)',
-  'Payment Method',
   'Additional Service 1', 'Rate 1', 'Type 1',
   'Additional Service 2', 'Rate 2', 'Type 2'
 ];
@@ -158,18 +161,21 @@ function renderTable() {
 
   const isEditor = STATE.role === 'editor';
   let html = '<table><thead><tr>';
-  html += '<th>SR#</th><th>Client</th>';
-  LIST_COLUMNS.forEach(c => html += `<th>${escapeHtml(c)}</th>`);
+  html += '<th class="sticky-col sticky-1"></th>';
+  html += '<th class="sticky-col sticky-2">Client</th>';
+  html += '<th>SR#</th>';
+  SUMMARY_COLUMNS.forEach(c => html += `<th>${escapeHtml(c)}</th>`);
   html += '<th>Invoice Status</th>';
   if (isEditor) html += '<th>Actions</th>';
   html += '</tr></thead><tbody>';
 
   STATE.clients.forEach(c => {
-    html += '<tr>';
+    html += `<tr>`;
+    html += `<td class="sticky-col sticky-1"><button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button></td>`;
+    html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
     html += `<td class="sr-cell">${escapeHtml(c['SR#'] || '')}</td>`;
-    html += `<td><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
-    LIST_COLUMNS.forEach(col => {
-      const isMoney = /\(\$\)/.test(col) || col === 'Rate 1' || col === 'Rate 2';
+    SUMMARY_COLUMNS.forEach(col => {
+      const isMoney = /\(\$\)/.test(col);
       html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(c[col] != null ? c[col] : '')}</td>`;
     });
     html += `<td>${statusStamp(c['Invoice Status'])}</td>`;
@@ -181,10 +187,26 @@ function renderTable() {
       </td>`;
     }
     html += '</tr>';
+
+    // Hidden details row
+    const colSpan = 4 + SUMMARY_COLUMNS.length + (isEditor ? 1 : 0);
+    html += `<tr class="details-row" id="detailsRow-${c.row}" style="display:none;"><td colspan="${colSpan}"><div class="details-grid">`;
+    DETAIL_COLUMNS.forEach(col => {
+      html += `<div class="detail-item"><span class="detail-label">${escapeHtml(col)}</span><span class="detail-value">${escapeHtml(c[col] != null && c[col] !== '' ? c[col] : '—')}</span></div>`;
+    });
+    html += `</div></td></tr>`;
   });
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+function toggleDetails(row) {
+  const detailsRow = document.getElementById('detailsRow-' + row);
+  const btn = document.getElementById('expandBtn-' + row);
+  const isOpen = detailsRow.style.display !== 'none';
+  detailsRow.style.display = isOpen ? 'none' : 'table-row';
+  btn.textContent = isOpen ? '▸' : '▾';
 }
 
 function statusStamp(status) {
