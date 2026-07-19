@@ -240,7 +240,14 @@ async function apiCall(action, extra) {
 // ============================================================
 async function loadClients() {
   const wrap = document.getElementById('tableWrap');
-  wrap.innerHTML = '<div class="empty-state"><div class="mark">Loading…</div></div>';
+  // Sirf pehli dafa (jab abhi tak koi client load hi nahi hua) "Loading…" dikhao.
+  // Uske baad har refresh (status change, edit, delete, bulk actions waghera) par
+  // purani table jaisi ki taisi dikhti rahegi jab tak naya data aa kar seedha
+  // uski jagah render na ho jaye — beech mein kuch bhi gayab/blank nahi hoga.
+  const isFirstLoad = STATE.clients.length === 0;
+  if (isFirstLoad) {
+    wrap.innerHTML = '<div class="empty-state"><div class="mark">Loading…</div></div>';
+  }
 
   const res = await apiCall('getClients', {});
   if (!res.success) {
@@ -385,6 +392,12 @@ function revertStatusCell(row) {
 }
 
 async function saveStatusChange(row, newStatus) {
+  // Dropdown select hote hi turant isi cell mein "Loading…" indicator dikhao,
+  // taake bandey ko pata chale ke save ho raha hai — jab tak poori table
+  // reload/gayab nahi hoti.
+  const cell = document.getElementById('statusCell-' + row);
+  if (cell) cell.innerHTML = '<span class="stamp status-loading">Updating…</span>';
+
   const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
   if (res.success) {
     toast('Status updated.', 'ok');
@@ -399,7 +412,7 @@ async function saveStatusChange(row, newStatus) {
   } else {
     toast(res.error, 'error');
   }
-  revertStatusCell(row); // dropdown ko wapas badge mein badal do (success ho ya fail)
+  revertStatusCell(row); // dropdown/loading indicator hata kar asli (naya ya purana) status badge dikhao
 }
 
 // ============================================================
