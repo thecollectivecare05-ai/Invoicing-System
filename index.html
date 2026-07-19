@@ -82,7 +82,12 @@
       <button class="btn btn-teal" id="chargeCustomersBtn" disabled title="Run 'Load Payment Methods' first">Charge Customers</button>
     </div>
   </div>
+  <div class="charge-stage-summary" id="chargeStageSummary"></div>
+
   <p class="charge-stage-hint">Only clients whose invoice has already been created in Stripe are shown here (Sent / ACH-Initiated / Failed). Run "Load Payment Methods" first, then "Charge Customers" will be enabled.</p>
+
+  <div class="charge-stage-filters" id="chargeStageFilters"></div>
+
   <div class="table-wrap" id="chargeStageTableWrap"></div>
 </section>
 
