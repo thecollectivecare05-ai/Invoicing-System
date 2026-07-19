@@ -114,6 +114,26 @@
   </div>
 </div>
 
+<!-- MODAL: Terminate Client -->
+<div class="modal-overlay" id="terminateDialogOverlay">
+  <div class="modal">
+    <h3>Terminate Client</h3>
+    <p class="modal-sub" id="terminateDialogSub"></p>
+    <div class="field-grid">
+      <div class="field full">
+        <label>Termination Date <span class="req">*</span></label>
+        <input type="date" id="terminateDateInput">
+      </div>
+    </div>
+    <p class="lock-note">Termination date tak invoices normally jaati rahengi. Date guzarne ke baad invoicing khud ruk jayegi. Client ka record turant delete nahi hota — final invoice confirm-paid hone ke 15 din baad hi "Terminated Clients" sheet mein archive hoke Master se hatega.</p>
+    <div class="modal-msg" id="terminateDialogMsg"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="terminateDialogCancelBtn">Cancel</button>
+      <button class="btn btn-danger" id="terminateDialogConfirmBtn">Confirm Termination</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
