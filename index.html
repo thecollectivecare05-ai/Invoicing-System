@@ -79,10 +79,10 @@
     <h2>Charge Customers <span class="count-badge" id="chargeStageCount">0</span></h2>
     <div class="toolbar-actions">
       <button class="btn btn-ghost" id="loadPaymentMethodsBtn">Load Payment Methods</button>
-      <button class="btn btn-teal" id="chargeCustomersBtn" disabled title="Pehle 'Load Payment Methods' chalayein">Charge Customers</button>
+      <button class="btn btn-teal" id="chargeCustomersBtn" disabled title="Run 'Load Payment Methods' first">Charge Customers</button>
     </div>
   </div>
-  <p class="charge-stage-hint">Sirf wo clients dikhaye ja rahe hain jinka invoice Stripe mein already ban chuka hai (Sent / ACH-Initiated / Failed). Pehle "Load Payment Methods" chalayein, uske baad "Charge Customers" enable ho jayega.</p>
+  <p class="charge-stage-hint">Only clients whose invoice has already been created in Stripe are shown here (Sent / ACH-Initiated / Failed). Run "Load Payment Methods" first, then "Charge Customers" will be enabled.</p>
   <div class="table-wrap" id="chargeStageTableWrap"></div>
 </section>
 
