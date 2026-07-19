@@ -489,6 +489,36 @@ main {
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
+.charge-stage-filters select {
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  color: var(--ink);
+}
+.reports-period-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.period-tab {
+  padding: 7px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.period-tab:hover { background: var(--paper-raised); }
+.period-tab.active {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
 .filter-label {
   font-size: 12px;
   color: var(--ink-soft);
