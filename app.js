@@ -227,7 +227,7 @@ function enterDashboard() {
   roleTag.textContent = STATE.role;
   roleTag.className = 'role-tag' + (STATE.role === 'viewer' ? ' viewer' : '');
 
-  const editorOnlyIds = ['addPracticeBtn', 'sendInvoicesBtn', 'openChargeStageBtn', 'prepareSheetBtn', 'clearMonthBtn'];
+  const editorOnlyIds = ['addPracticeBtn', 'sendInvoicesBtn', 'openChargeStageBtn', 'prepareSheetBtn', 'clearMonthBtn', 'resetNextMonthBtn'];
   editorOnlyIds.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
@@ -936,6 +936,32 @@ async function handleClearMonthClick() {
   }
 }
 
+// ⭐ "Reset for Next Month" — 6 columns clear karta hai (Practice Collection
+// Month, Practice Monthly Collection ($), No. of Verified Benefits, Stripe
+// Customer ID, Payment Method ID, Invoice ID) taake agla billing cycle
+// fresh shuru ho sake. Invoice Status jaan-boojh kar touch nahi hota.
+async function handleResetNextMonthClick() {
+  if (!confirm('Agle mahine ke liye reset kiya jaye?\n\nYe columns clear ho jayengi (sab clients ke liye):\n- Practice Collection Month\n- Practice Monthly Collection ($)\n- No. of Verified Benefits\n- Stripe Customer ID\n- Payment Method ID\n- Invoice ID\n\nInvoice Status tabdeel nahi hoga. Ye action undo nahi ho sakta.')) return;
+  const btn = document.getElementById('resetNextMonthBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Resetting…';
+  try {
+    const res = await apiCall('resetForNextMonth', {});
+    if (res.success) {
+      toast(`Reset done for ${res.updated} client(s).`, 'ok');
+      await loadClients();
+    } else {
+      toast(res.error || 'Something went wrong.', 'error');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
 async function handleLoadPaymentMethodsClick() {
   const btn = document.getElementById('loadPaymentMethodsBtn');
   const ok = await runBulkAction(btn, 'loadPaymentMethods', 'Payment methods loaded.');
@@ -1015,6 +1041,8 @@ function bindUI() {
   if (prepareSheetBtn) prepareSheetBtn.addEventListener('click', handlePrepareSheetClick);
   const clearMonthBtn = document.getElementById('clearMonthBtn');
   if (clearMonthBtn) clearMonthBtn.addEventListener('click', handleClearMonthClick);
+  const resetNextMonthBtn = document.getElementById('resetNextMonthBtn');
+  if (resetNextMonthBtn) resetNextMonthBtn.addEventListener('click', handleResetNextMonthClick);
   document.getElementById('openChargeStageBtn').addEventListener('click', openChargeStage);
   document.getElementById('backToDashboardBtn').addEventListener('click', backToDashboard);
   document.getElementById('loadPaymentMethodsBtn').addEventListener('click', handleLoadPaymentMethodsClick);
