@@ -69,7 +69,8 @@ const INVOICE_STATUS_OPTIONS = [
   'Paid',
   'Already Paid',
   'ACH-Initiated',
-  'Failed'
+  'Failed',
+  'Do Not Invoice'
 ];
 
 // Status groupings used by the dashboards below
@@ -524,8 +525,20 @@ function renderSummaryPanel() {
 // renderCycleProgress() hamesha renderDashboards() ke BAAD call karna hai.
 // ============================================================
 function computeCycleProgress_() {
-  const total = STATE.clients.filter(c => String(c['Client Name'] || '').trim() !== '').length;
-  const monthSet = STATE.clients.filter(c => String(c['Practice Collection Month'] || '').trim() !== '').length;
+  // "Do Not Invoice" clients ko is tracker se nikal dete hain — unka month/invoice
+  // kabhi banna hi nahi, isliye unhe count karne se ye card kabhi "done" nahi hota.
+  // Terminated clients ko bhi isi wajah se nikala hai.
+  const trackedClients = STATE.clients.filter(c => {
+    const name = String(c['Client Name'] || '').trim();
+    if (name === '') return false;
+    const status = String(c['Invoice Status'] || '').trim().toLowerCase();
+    const clientStatus = String(c['Client Status'] || '').trim().toLowerCase();
+    if (status === 'do not invoice') return false;
+    if (clientStatus === 'terminated') return false;
+    return true;
+  });
+  const total = trackedClients.length;
+  const monthSet = trackedClients.filter(c => String(c['Practice Collection Month'] || '').trim() !== '').length;
 
   const sentTotal = (DASH_BUCKETS.sent || []).length;        // Sent/Paid/Already Paid/ACH-Initiated/Failed/Manual Sent
   const pendingTotal = (DASH_BUCKETS.pending || []).length;  // Need to Send Invoice / blank
@@ -1011,7 +1024,7 @@ async function handleClearMonthClick() {
 // Customer ID, Payment Method ID, Invoice ID) taake agla billing cycle
 // fresh shuru ho sake. Invoice Status jaan-boojh kar touch nahi hota.
 async function handleResetNextMonthClick() {
-  if (!confirm('Agle mahine ke liye reset kiya jaye?\n\nYe columns clear ho jayengi (sab clients ke liye):\n- Practice Collection Month\n- Practice Monthly Collection ($)\n- No. of Verified Benefits\n- Stripe Customer ID\n- Payment Method ID\n- Invoice ID\n\nInvoice Status tabdeel nahi hoga. Ye action undo nahi ho sakta.')) return;
+  if (!confirm('Agle mahine ke liye reset kiya jaye?\n\nYe columns poori tarah clear ho jayengi (sab clients ke liye):\n- Practice Collection Month\n- Practice Monthly Collection ($)\n- No. of Verified Benefits\n- Stripe Customer ID\n- Payment Method ID\n- Invoice ID\n- Remarks\n\nInvoice Status smart reset hoga:\n- "Manual Invoice Sent - Check Sheet" → wapas "Manual Invoice - Check Sheet"\n- "Do Not Invoice" → waisa hi rahega (chhua nahi jayega)\n- Baaki sab status → blank/Pending ho jayenge\n\nYe action undo nahi ho sakta.')) return;
   const btn = document.getElementById('resetNextMonthBtn');
   const originalText = btn.textContent;
   btn.disabled = true;
