@@ -441,6 +441,10 @@ function clientsByStatus(list) {
   return STATE.clients.filter(c => statusMatches(c['Invoice Status'], list));
 }
 
+function sumInvoiceAmt_(rows) {
+  return rows.reduce((s, c) => s + (parseFloat(c['Total Invoice ($)']) || 0), 0);
+}
+
 function renderDashboards() {
   DASH_BUCKETS = {
     sent: clientsByStatus(SENT_STATUSES),
@@ -455,8 +459,8 @@ function renderDashboards() {
     invoiceEl.innerHTML = `
       <h3 class="dash-title">Invoice Status</h3>
       <div class="dash-cards">
-        ${dashCardHtml('sent', 'Invoice Sent', DASH_BUCKETS.sent.length, 'ok')}
-        ${dashCardHtml('pending', 'Pending', DASH_BUCKETS.pending.length, 'warn')}
+        ${dashCardHtml('sent', 'Invoice Sent', DASH_BUCKETS.sent, 'ok')}
+        ${dashCardHtml('pending', 'Pending', DASH_BUCKETS.pending, 'warn')}
       </div>`;
   }
 
@@ -465,16 +469,17 @@ function renderDashboards() {
     chargeEl.innerHTML = `
       <h3 class="dash-title">Card Charge Status</h3>
       <div class="dash-cards">
-        ${dashCardHtml('charged', 'Already Charged', DASH_BUCKETS.charged.length, 'ok')}
-        ${dashCardHtml('chargePending', 'Charge Pending', DASH_BUCKETS.chargePending.length, 'warn')}
-        ${dashCardHtml('failed', 'Failed', DASH_BUCKETS.failed.length, 'danger')}
+        ${dashCardHtml('charged', 'Already Charged', DASH_BUCKETS.charged, 'ok')}
+        ${dashCardHtml('chargePending', 'Charge Pending', DASH_BUCKETS.chargePending, 'warn')}
+        ${dashCardHtml('failed', 'Failed', DASH_BUCKETS.failed, 'danger')}
       </div>`;
   }
 }
 
-function dashCardHtml(key, cardLabel, count, tone) {
+function dashCardHtml(key, cardLabel, rows, tone) {
   return `<div class="dash-card ${tone}" onclick="openStatusDialog('${key}', '${escapeAttr(cardLabel)}')">
-    <div class="dash-count">${count}</div>
+    <div class="dash-count">${rows.length}</div>
+    <div class="dash-amt">$${sumInvoiceAmt_(rows).toFixed(2)}</div>
     <div class="dash-label">${escapeHtml(cardLabel)}</div>
   </div>`;
 }
@@ -570,6 +575,8 @@ function toggleChargeStageFilter(status, checked) {
   renderChargeStageTable();
 }
 
+let CHARGE_STAGE_LAST_ROWS = [];
+
 function renderChargeStageTable() {
   renderChargeStageSummary();
   renderChargeStageFilters();
@@ -578,6 +585,7 @@ function renderChargeStageTable() {
   if (!wrap) return; // Stage 2 abhi DOM mein nahi (safety check)
 
   const rows = STATE.clients.filter(c => STATE.chargeStageStatusFilter.has(String(c['Invoice Status'] || '').trim()));
+  CHARGE_STAGE_LAST_ROWS = rows; // Download Excel button isi (currently filtered) list ko export karta hai
   const countEl = document.getElementById('chargeStageCount');
   if (countEl) countEl.textContent = rows.length;
 
@@ -678,6 +686,33 @@ function exportRowsToExcel(rows, dialogLabel) {
   XLSX.writeFile(wb, fileName);
 }
 
+function exportChargeStageToExcel() {
+  if (typeof XLSX === 'undefined') {
+    toast('Excel export library failed to load.', 'error');
+    return;
+  }
+  if (!CHARGE_STAGE_LAST_ROWS.length) {
+    toast('Nothing to export — no rows match the current filter.', 'error');
+    return;
+  }
+  const data = CHARGE_STAGE_LAST_ROWS.map(c => ({
+    'Client Name': c['Client Name'] || '',
+    'Email': c['Email'] || '',
+    'Payment Method': c['Payment Method'] || '',
+    'Stripe Customer ID': c['Stripe Customer ID'] || '',
+    'Payment Method ID': c['Payment Method ID'] || '',
+    'Invoice ID': c['Invoice ID'] || '',
+    'Total Invoice ($)': c['Total Invoice ($)'] || '',
+    'Invoice Status': c['Invoice Status'] || '',
+    'Remarks': c['Remarks'] || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Charge Customers');
+  const fileName = 'charge-customers-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, fileName);
+}
+
 // ============================================================
 // ADD / EDIT MODAL
 // ============================================================
@@ -693,6 +728,7 @@ function bindUI() {
   document.getElementById('backToDashboardBtn').addEventListener('click', backToDashboard);
   document.getElementById('loadPaymentMethodsBtn').addEventListener('click', handleLoadPaymentMethodsClick);
   document.getElementById('chargeCustomersBtn').addEventListener('click', handleChargeCustomersClick);
+  document.getElementById('chargeStageExcelBtn').addEventListener('click', exportChargeStageToExcel);
 
   const searchInput = document.getElementById('practiceSearch');
   if (searchInput) {
