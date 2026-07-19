@@ -12,14 +12,7 @@ let STATE = {
 
   // ⭐ Terminated Clients page
   terminatedClients: [],
-  terminatedStageFilter: new Set(['Pending Archive', 'Archived']),
-
-  // ⭐ Reports page (Invoice History based)
-  invoiceHistory: [],
-  reportsPeriod: 'ytd',
-  reportsStatusFilter: null, // set niche REPORT_STATUS_OPTIONS_ define hone ke baad
-  reportsMethodFilter: null, // set niche REPORT_METHOD_OPTIONS_ define hone ke baad
-  reportsMonthFilter: ''
+  terminatedStageFilter: new Set(['Pending Archive', 'Archived'])
 };
 
 // There's no fixed limit on Additional Services — as many as needed can be
@@ -102,13 +95,6 @@ const CHARGE_STAGE_FILTER_OPTIONS = [
   { key: 'Already Paid', label: 'Already Paid', tone: 'ok' }
 ];
 STATE.chargeStageStatusFilter = new Set(CHARGE_STAGE_STATUSES);
-
-// ⭐ Reports page constants
-const MONTH_NAMES_ = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const REPORT_STATUS_OPTIONS_ = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed'];
-const REPORT_METHOD_OPTIONS_ = ['Credit/Debit Card', 'ACH', 'ACH and Credit/Debit'];
-STATE.reportsStatusFilter = new Set(REPORT_STATUS_OPTIONS_);
-STATE.reportsMethodFilter = new Set(REPORT_METHOD_OPTIONS_);
 
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
@@ -214,15 +200,11 @@ function signOut() {
   STATE = {
     email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false,
     chargeStageStatusFilter: new Set(CHARGE_STAGE_STATUSES),
-    terminatedClients: [], terminatedStageFilter: new Set(['Pending Archive', 'Archived']),
-    invoiceHistory: [], reportsPeriod: 'ytd',
-    reportsStatusFilter: new Set(REPORT_STATUS_OPTIONS_), reportsMethodFilter: new Set(REPORT_METHOD_OPTIONS_),
-    reportsMonthFilter: ''
+    terminatedClients: [], terminatedStageFilter: new Set(['Pending Archive', 'Archived'])
   };
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('chargeStagePage').style.display = 'none';
   document.getElementById('terminatedPage').style.display = 'none';
-  document.getElementById('reportsPage').style.display = 'none';
   const chargeBtn = document.getElementById('chargeCustomersBtn');
   if (chargeBtn) { chargeBtn.disabled = true; chargeBtn.title = "Run 'Load Payment Methods' first"; }
   document.getElementById('authZone').style.display = 'none';
@@ -240,11 +222,11 @@ function enterDashboard() {
   roleTag.textContent = STATE.role;
   roleTag.className = 'role-tag' + (STATE.role === 'viewer' ? ' viewer' : '');
 
-  document.getElementById('addPracticeBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
-  document.getElementById('sendInvoicesBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
-  document.getElementById('openChargeStageBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
-  document.getElementById('prepareSheetBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
-  document.getElementById('clearMonthBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  const editorOnlyIds = ['addPracticeBtn', 'sendInvoicesBtn', 'openChargeStageBtn', 'prepareSheetBtn', 'clearMonthBtn'];
+  editorOnlyIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  });
 
   loadClients();
 }
@@ -1017,6 +999,10 @@ function bindUI() {
   });
 
   document.getElementById('sendInvoicesBtn').addEventListener('click', handleSendInvoicesClick);
+  const prepareSheetBtn = document.getElementById('prepareSheetBtn');
+  if (prepareSheetBtn) prepareSheetBtn.addEventListener('click', handlePrepareSheetClick);
+  const clearMonthBtn = document.getElementById('clearMonthBtn');
+  if (clearMonthBtn) clearMonthBtn.addEventListener('click', handleClearMonthClick);
   document.getElementById('openChargeStageBtn').addEventListener('click', openChargeStage);
   document.getElementById('backToDashboardBtn').addEventListener('click', backToDashboard);
   document.getElementById('loadPaymentMethodsBtn').addEventListener('click', handleLoadPaymentMethodsClick);
