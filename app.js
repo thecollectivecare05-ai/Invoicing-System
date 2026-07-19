@@ -520,33 +520,30 @@ function renderChargeStageTable() {
   const countEl = document.getElementById('chargeStageCount');
   if (countEl) countEl.textContent = rows.length;
 
-  if (rows.length === 0) {
-    wrap.innerHTML = '<div class="empty-state"><div class="mark">Koi charge-ready client nahi hai</div>Sirf wo clients yahan aate hain jinka invoice Stripe mein bhej diya gaya ho (Sent / ACH-Initiated / Failed).</div>';
-    return;
-  }
-
   let html = '<table><thead><tr>';
   html += '<th>Client Name / Email</th><th>Payment Method</th><th>Stripe Customer ID</th>';
-  html += '<th>Payment Method ID</th><th>Invoice ID</th><th>Total Invoice ($)</th><th>Invoice Status</th>';
+  html += '<th>Payment Method ID</th><th>Invoice ID</th><th>Total Invoice ($)</th><th>Invoice Status</th><th>Remarks</th>';
   html += '</tr></thead><tbody>';
 
-  rows.forEach(c => {
-    const status = String(c['Invoice Status'] || '').trim();
-    const isFailed = status === 'Failed';
-    const remarks = c['Remarks'] || '';
-    html += `<tr>
-      <td><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>
-      <td>${escapeHtml(c['Payment Method'] || '—')}</td>
-      <td>${escapeHtml(c['Stripe Customer ID'] || '—')}</td>
-      <td>${escapeHtml(c['Payment Method ID'] || '—')}</td>
-      <td>${escapeHtml(c['Invoice ID'] || '—')}</td>
-      <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
-      <td>${statusStamp(status)}</td>
-    </tr>`;
-    if (isFailed && remarks) {
-      html += `<tr class="remarks-error-row"><td colspan="7"><span class="remarks-error">⚠ ${escapeHtml(remarks)}</span></td></tr>`;
-    }
-  });
+  if (rows.length === 0) {
+    html += '<tr><td colspan="8" class="status-dialog-empty">Koi charge-ready client nahi hai — sirf wo clients yahan aate hain jinka invoice Stripe mein bhej diya gaya ho (Sent / ACH-Initiated / Failed).</td></tr>';
+  } else {
+    rows.forEach(c => {
+      const status = String(c['Invoice Status'] || '').trim();
+      const isFailed = status === 'Failed';
+      const remarks = c['Remarks'] || '';
+      html += `<tr>
+        <td><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>
+        <td>${escapeHtml(c['Payment Method'] || '—')}</td>
+        <td>${escapeHtml(c['Stripe Customer ID'] || '—')}</td>
+        <td>${escapeHtml(c['Payment Method ID'] || '—')}</td>
+        <td>${escapeHtml(c['Invoice ID'] || '—')}</td>
+        <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
+        <td>${statusStamp(status)}</td>
+        <td class="${isFailed ? 'remarks-error' : ''}">${remarks ? (isFailed ? '⚠ ' : '') + escapeHtml(remarks) : '—'}</td>
+      </tr>`;
+    });
+  }
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
