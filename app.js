@@ -385,13 +385,22 @@ function openStatusEditor(row) {
   document.getElementById('statusSelect-' + row).focus();
 }
 
+// Jab tak koi status save ho raha ho, us row ke liye revertStatusCell()
+// ko blur waghera se accidentally trigger na hone do — warna select () DOM
+// se hatate hi jo synchronous "blur" event fire hota hai wo revertStatusCell
+// ko bula kar humara "Loading…" turant purane status se overwrite kar deta
+// tha, aur lagta tha jaise status change ho hi nahi raha.
+const STATUS_SAVING_ROWS = new Set();
+
 function revertStatusCell(row) {
+  if (STATUS_SAVING_ROWS.has(row)) return; // saveStatusChange abhi khud is cell ko control kar raha hai
   const client = STATE.clients.find(c => c.row === row);
   const cell = document.getElementById('statusCell-' + row);
   if (client && cell) cell.innerHTML = renderStatusCell(client, true);
 }
 
 async function saveStatusChange(row, newStatus) {
+  STATUS_SAVING_ROWS.add(row);
   // Dropdown select hote hi turant isi cell mein "Loading…" indicator dikhao,
   // taake bandey ko pata chale ke save ho raha hai — jab tak poori table
   // reload/gayab nahi hoti.
@@ -412,6 +421,7 @@ async function saveStatusChange(row, newStatus) {
   } else {
     toast(res.error, 'error');
   }
+  STATUS_SAVING_ROWS.delete(row);
   revertStatusCell(row); // dropdown/loading indicator hata kar asli (naya ya purana) status badge dikhao
 }
 
