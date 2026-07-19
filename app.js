@@ -129,7 +129,9 @@ const SUMMARY_COLUMNS = [
 const BASE_DETAIL_COLUMNS = [
   'Payment Method',
   'Practice Monthly Collection ($)',
-  'No. of Verified Benefits'
+  'No. of Verified Benefits',
+  'Client Status',
+  'Termination Date'
 ];
 
 // ============================================================
@@ -297,8 +299,9 @@ function renderTable() {
     html += `<td class="sticky-col sticky-1">
       <button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button>
       ${isEditor ? `<button class="edit-icon-btn" title="Edit" onclick="openEditModal(${c.row})">✎</button>` : ''}
+      ${isEditor ? renderTerminateBtn_(c) : ''}
     </td>`;
-    html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
+    html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span>${renderTerminatedBadge_(c)}<span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
     SUMMARY_COLUMNS.forEach(col => {
       const isMoney = /\(\$\)/.test(col) || col === 'Monthly Minimum (Billing)';
       html += `<td class="${isMoney ? 'money-cell' : ''}">${escapeHtml(getSummaryCellValue(c, col))}</td>`;
@@ -372,6 +375,25 @@ function renderStatusCell(c, isEditor) {
   return `<span class="status-click" onclick="openStatusEditor(${c.row})" title="Click to change status">${statusStamp(c['Invoice Status'])}</span>`;
 }
 
+// ⭐ TERMINATION — row action button (sticky col 1): agar client already
+// Terminated hai to ek chota "reactivate" button dikhao, warna "Terminate".
+function renderTerminateBtn_(c) {
+  const isTerminated = String(c['Client Status'] || '').trim().toLowerCase() === 'terminated';
+  if (isTerminated) {
+    return `<button class="reactivate-icon-btn" title="Reactivate client" onclick="reactivateClient(${c.row}, '${escapeAttr(c['Client Name'])}')">↩</button>`;
+  }
+  return `<button class="terminate-icon-btn" title="Mark as Terminated" onclick="openTerminateDialog(${c.row})">⛔</button>`;
+}
+
+// ⭐ TERMINATION — client-name column ke saath ek chota badge, taake row
+// expand kiye bina hi dikh jaye ke client terminated hai (aur kis date se).
+function renderTerminatedBadge_(c) {
+  const isTerminated = String(c['Client Status'] || '').trim().toLowerCase() === 'terminated';
+  if (!isTerminated) return '';
+  const dateTxt = c['Termination Date'] ? escapeHtml(c['Termination Date']) : 'date not set';
+  return `<span class="stamp terminated-badge" title="Termination Date: ${dateTxt}">🔴 Terminated · ${dateTxt}</span>`;
+}
+
 function openStatusEditor(row) {
   const client = STATE.clients.find(c => c.row === row);
   const cell = document.getElementById('statusCell-' + row);
@@ -401,11 +423,18 @@ function revertStatusCell(row) {
 
 async function saveStatusChange(row, newStatus) {
   STATUS_SAVING_ROWS.add(row);
-  // Dropdown select hote hi turant isi cell mein "Loading…" indicator dikhao,
-  // taake bandey ko pata chale ke save ho raha hai — jab tak poori table
-  // reload/gayab nahi hoti.
-  const cell = document.getElementById('statusCell-' + row);
-  if (cell) cell.innerHTML = '<span class="stamp status-loading">Loading…</span>';
+
+  // NOTE: cell.innerHTML ko turant (isi synchronous onchange call ke andar)
+  // nahi badalte — select abhi bhi focused hai, aur usay DOM se hataate hi
+  // jo synchronous 'blur' event fire hota hai wo isi waqt cell ko chhedne ki
+  // koshish karta hai, jis se browser "node to be removed is no longer a
+  // child of this node… moved in a 'blur' event handler" wala error deta hai.
+  // Isliye ek tick baad (setTimeout 0) badalte hain — us waqt tak blur cycle
+  // poora ho chuka hota hai aur koi race nahi rehta.
+  setTimeout(() => {
+    const cell = document.getElementById('statusCell-' + row);
+    if (cell) cell.innerHTML = '<span class="stamp status-loading">Loading…</span>';
+  }, 0);
 
   const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
   if (res.success) {
@@ -777,6 +806,18 @@ function bindUI() {
       if (e.target.id === 'statusDialogOverlay') closeStatusDialog();
     });
   }
+
+  // ⭐ TERMINATION dialog bindings
+  const terminateDialogCancelBtn = document.getElementById('terminateDialogCancelBtn');
+  if (terminateDialogCancelBtn) terminateDialogCancelBtn.addEventListener('click', closeTerminateDialog);
+  const terminateDialogConfirmBtn = document.getElementById('terminateDialogConfirmBtn');
+  if (terminateDialogConfirmBtn) terminateDialogConfirmBtn.addEventListener('click', confirmTerminate);
+  const terminateDialogOverlay = document.getElementById('terminateDialogOverlay');
+  if (terminateDialogOverlay) {
+    terminateDialogOverlay.addEventListener('click', e => {
+      if (e.target.id === 'terminateDialogOverlay') closeTerminateDialog();
+    });
+  }
 }
 
 function openAddModal() {
@@ -1049,6 +1090,73 @@ function setModalMsg(msg, type) {
   const el = document.getElementById('modalMsg');
   el.textContent = msg;
   el.className = 'modal-msg ' + type;
+}
+
+// ============================================================
+// ⭐ TERMINATION
+// ============================================================
+// Row jiske liye Terminate dialog abhi khula hai
+let TERMINATE_TARGET_ROW = null;
+
+function openTerminateDialog(row) {
+  const client = STATE.clients.find(c => c.row === row);
+  if (!client) return;
+  TERMINATE_TARGET_ROW = row;
+  document.getElementById('terminateDialogSub').textContent = (client['Client Name'] || '') + ' — ' + (client['Email'] || '');
+  const dateInput = document.getElementById('terminateDateInput');
+  if (dateInput) dateInput.value = '';
+  setTerminateMsg('', '');
+  document.getElementById('terminateDialogOverlay').classList.add('open');
+}
+
+function closeTerminateDialog() {
+  document.getElementById('terminateDialogOverlay').classList.remove('open');
+  TERMINATE_TARGET_ROW = null;
+}
+
+function setTerminateMsg(msg, type) {
+  const el = document.getElementById('terminateDialogMsg');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'modal-msg ' + (type || '');
+}
+
+async function confirmTerminate() {
+  const dateVal = document.getElementById('terminateDateInput').value;
+  if (!dateVal) { setTerminateMsg('Termination date select karna zaroori hai.', 'error'); return; }
+  if (!TERMINATE_TARGET_ROW) return;
+
+  const confirmBtn = document.getElementById('terminateDialogConfirmBtn');
+  const cancelBtn = document.getElementById('terminateDialogCancelBtn');
+  confirmBtn.disabled = true;
+  cancelBtn.disabled = true;
+  confirmBtn.textContent = 'Saving…';
+  setTerminateMsg('Saving…', 'saving');
+
+  const res = await apiCall('markTerminated', { row: TERMINATE_TARGET_ROW, terminationDate: dateVal });
+
+  confirmBtn.disabled = false;
+  cancelBtn.disabled = false;
+  confirmBtn.textContent = 'Confirm Termination';
+
+  if (res.success) {
+    toast('Client Terminated mark ho gaya.', 'ok');
+    closeTerminateDialog();
+    loadClients();
+  } else {
+    setTerminateMsg(res.error, 'error');
+  }
+}
+
+async function reactivateClient(row, name) {
+  if (!confirm(`"${name}" ko wapis Active karna hai? Invoicing normally resume ho jayegi.`)) return;
+  const res = await apiCall('reactivateClient', { row });
+  if (res.success) {
+    toast('Client reactivate ho gaya.', 'ok');
+    loadClients();
+  } else {
+    toast(res.error, 'error');
+  }
 }
 
 // ============================================================
