@@ -384,13 +384,18 @@ function renderTerminateBtn_(c) {
   }
   return `<button class="terminate-icon-btn" title="Mark as Terminated" onclick="openTerminateDialog(${c.row})">⛔</button>`;
 }
-
+function formatDateDisplay_(isoDate) {
+  if (!isoDate) return '';
+  const parts = String(isoDate).split('-');
+  if (parts.length !== 3) return isoDate;
+  return parts[1] + '-' + parts[2] + '-' + parts[0]; // MM-DD-YYYY
+}
 // ⭐ TERMINATION — client-name column ke saath ek chota badge, taake row
 // expand kiye bina hi dikh jaye ke client terminated hai (aur kis date se).
 function renderTerminatedBadge_(c) {
   const isTerminated = String(c['Client Status'] || '').trim().toLowerCase() === 'terminated';
   if (!isTerminated) return '';
-  const dateTxt = c['Termination Date'] ? escapeHtml(c['Termination Date']) : 'date not set';
+  const dateTxt = c['Termination Date'] ? escapeHtml(formatDateDisplay_(c['Termination Date'])) : 'date not set';
   return `<span class="stamp terminated-badge" title="Termination Date: ${dateTxt}">🔴 Terminated · ${dateTxt}</span>`;
 }
 
