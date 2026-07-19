@@ -6,7 +6,8 @@ let STATE = {
   code: sessionStorage.getItem('code') || null,
   role: sessionStorage.getItem('role') || null,
   clients: [],
-  searchTerm: ''
+  searchTerm: '',
+  paymentMethodsLoaded: false // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
 };
 
 // There's no fixed limit on Additional Services — as many as needed can be
@@ -70,6 +71,11 @@ const PENDING_STATUSES = ['Need to Send Invoice', 'Manual Invoice-Check Sheet', 
 const CHARGED_STATUSES = ['Paid', 'Already Paid'];
 const CHARGE_PENDING_STATUSES = ['Sent', 'ACH-Initiated'];
 const FAILED_STATUSES = ['Failed'];
+
+// Stage 2 (Charge Customers page) — sirf wo clients dikhayein jinka Stripe
+// invoice already ban chuka hai, warna "Need to Send Invoice" jaise clients
+// bhi list mein aa jate jinhe abhi charge nahi kiya ja sakta.
+const CHARGE_STAGE_STATUSES = ['Sent', 'ACH-Initiated', 'Failed'];
 
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
@@ -170,8 +176,11 @@ function showGateError(msg) {
 
 function signOut() {
   sessionStorage.clear();
-  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '' };
+  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false };
   document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('chargeStagePage').style.display = 'none';
+  const chargeBtn = document.getElementById('chargeCustomersBtn');
+  if (chargeBtn) { chargeBtn.disabled = true; chargeBtn.title = "Pehle 'Load Payment Methods' chalayein"; }
   document.getElementById('authZone').style.display = 'none';
   document.getElementById('loginForm').reset();
   document.getElementById('gate').style.display = 'flex';
@@ -188,6 +197,8 @@ function enterDashboard() {
   roleTag.className = 'role-tag' + (STATE.role === 'viewer' ? ' viewer' : '');
 
   document.getElementById('addPracticeBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  document.getElementById('sendInvoicesBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  document.getElementById('openChargeStageBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
 
   loadClients();
 }
@@ -226,6 +237,7 @@ async function loadClients() {
   renderTable();
   renderSummaryPanel();
   renderDashboards();
+  renderChargeStageTable(); // same STATE.clients — Stage 2 ka Invoice Status Stage 1 jaisa hi rehta hai
 }
 
 function getFilteredClients() {
@@ -483,6 +495,111 @@ function closeStatusDialog() {
   document.getElementById('statusDialogOverlay').classList.remove('open');
 }
 
+// ============================================================
+// STAGE 1 -> STAGE 2 PAGE SWITCH
+// ============================================================
+function openChargeStage() {
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('chargeStagePage').style.display = 'block';
+  renderChargeStageTable();
+}
+
+function backToDashboard() {
+  document.getElementById('chargeStagePage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+// ============================================================
+// STAGE 2 — CHARGE CUSTOMERS TABLE
+// ============================================================
+function renderChargeStageTable() {
+  const wrap = document.getElementById('chargeStageTableWrap');
+  if (!wrap) return; // Stage 2 abhi DOM mein nahi (safety check)
+
+  const rows = STATE.clients.filter(c => CHARGE_STAGE_STATUSES.includes(String(c['Invoice Status'] || '').trim()));
+  const countEl = document.getElementById('chargeStageCount');
+  if (countEl) countEl.textContent = rows.length;
+
+  if (rows.length === 0) {
+    wrap.innerHTML = '<div class="empty-state"><div class="mark">Koi charge-ready client nahi hai</div>Sirf wo clients yahan aate hain jinka invoice Stripe mein bhej diya gaya ho (Sent / ACH-Initiated / Failed).</div>';
+    return;
+  }
+
+  let html = '<table><thead><tr>';
+  html += '<th>Client Name / Email</th><th>Payment Method</th><th>Stripe Customer ID</th>';
+  html += '<th>Payment Method ID</th><th>Invoice ID</th><th>Total Invoice ($)</th><th>Invoice Status</th>';
+  html += '</tr></thead><tbody>';
+
+  rows.forEach(c => {
+    const status = String(c['Invoice Status'] || '').trim();
+    const isFailed = status === 'Failed';
+    const remarks = c['Remarks'] || '';
+    html += `<tr>
+      <td><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>
+      <td>${escapeHtml(c['Payment Method'] || '—')}</td>
+      <td>${escapeHtml(c['Stripe Customer ID'] || '—')}</td>
+      <td>${escapeHtml(c['Payment Method ID'] || '—')}</td>
+      <td>${escapeHtml(c['Invoice ID'] || '—')}</td>
+      <td class="money-cell">${escapeHtml(c['Total Invoice ($)'] != null ? c['Total Invoice ($)'] : '')}</td>
+      <td>${statusStamp(status)}</td>
+    </tr>`;
+    if (isFailed && remarks) {
+      html += `<tr class="remarks-error-row"><td colspan="7"><span class="remarks-error">⚠ ${escapeHtml(remarks)}</span></td></tr>`;
+    }
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+// ============================================================
+// BULK ACTION BUTTONS (Send Invoices / Load Payment Methods / Charge Customers)
+// ============================================================
+async function runBulkAction(btn, action, doneMsg) {
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  try {
+    const res = await apiCall(action, {});
+    if (res.success) {
+      toast(doneMsg, 'ok');
+      await loadClients();
+      return true;
+    } else {
+      toast(res.error || 'Something went wrong.', 'error');
+      return false;
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+    return false;
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+async function handleSendInvoicesClick() {
+  const btn = document.getElementById('sendInvoicesBtn');
+  await runBulkAction(btn, 'sendInvoicesBulk', 'Invoices sent.');
+}
+
+async function handleLoadPaymentMethodsClick() {
+  const btn = document.getElementById('loadPaymentMethodsBtn');
+  const ok = await runBulkAction(btn, 'loadPaymentMethods', 'Payment methods loaded.');
+  if (ok) {
+    STATE.paymentMethodsLoaded = true;
+    const chargeBtn = document.getElementById('chargeCustomersBtn');
+    chargeBtn.disabled = false;
+    chargeBtn.title = '';
+  }
+}
+
+async function handleChargeCustomersClick() {
+  if (!STATE.paymentMethodsLoaded) return; // extra safety, button already disabled
+  const btn = document.getElementById('chargeCustomersBtn');
+  await runBulkAction(btn, 'chargeCustomersBulk', 'Charging completed.');
+}
+
 function exportRowsToExcel(rows, dialogLabel) {
   if (typeof XLSX === 'undefined') {
     toast('Excel export library failed to load.', 'error');
@@ -512,6 +629,12 @@ function bindUI() {
   document.getElementById('modalOverlay').addEventListener('click', e => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
+
+  document.getElementById('sendInvoicesBtn').addEventListener('click', handleSendInvoicesClick);
+  document.getElementById('openChargeStageBtn').addEventListener('click', openChargeStage);
+  document.getElementById('backToDashboardBtn').addEventListener('click', backToDashboard);
+  document.getElementById('loadPaymentMethodsBtn').addEventListener('click', handleLoadPaymentMethodsClick);
+  document.getElementById('chargeCustomersBtn').addEventListener('click', handleChargeCustomersClick);
 
   const searchInput = document.getElementById('practiceSearch');
   if (searchInput) {
