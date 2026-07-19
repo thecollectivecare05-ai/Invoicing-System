@@ -62,7 +62,8 @@ function label(key) { return LABELS[key] || key; }
 // The first '' option is always the blank/unselected default.
 const INVOICE_STATUS_OPTIONS = [
   'Need to Send Invoice',
-  'Manual Invoice-Check Sheet',
+  'Manual Invoice - Check Sheet',
+  'Manual Invoice Sent - Check Sheet',
   'Sent',
   'Paid',
   'Already Paid',
@@ -72,7 +73,10 @@ const INVOICE_STATUS_OPTIONS = [
 
 // Status groupings used by the dashboards below
 const SENT_STATUSES = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed'];
-const PENDING_STATUSES = ['Need to Send Invoice', 'Manual Invoice-Check Sheet', ''];
+const PENDING_STATUSES = ['Need to Send Invoice', ''];
+// Manual invoice clients (Melissa/Maribel/Sabah, ya future manual clients) —
+// inhe alag dashboard card mein dikhaya jata hai, "Pending" mein nahi.
+const MANUAL_STATUSES = ['Manual Invoice - Check Sheet', 'Manual Invoice Sent - Check Sheet'];
 const CHARGED_STATUSES = ['Paid', 'Already Paid'];
 const CHARGE_PENDING_STATUSES = ['Sent', 'ACH-Initiated'];
 const FAILED_STATUSES = ['Failed'];
@@ -529,6 +533,7 @@ function renderDashboards() {
   DASH_BUCKETS = {
     sent: clientsByStatus(SENT_STATUSES),
     pending: clientsByStatus(PENDING_STATUSES),
+    manual: clientsByStatus(MANUAL_STATUSES),
     charged: clientsByStatus(CHARGED_STATUSES),
     chargePending: clientsByStatus(CHARGE_PENDING_STATUSES),
     failed: clientsByStatus(FAILED_STATUSES)
@@ -541,6 +546,7 @@ function renderDashboards() {
       <div class="dash-cards">
         ${dashCardHtml('sent', 'Invoice Sent', DASH_BUCKETS.sent, 'ok')}
         ${dashCardHtml('pending', 'Pending', DASH_BUCKETS.pending, 'warn')}
+        ${dashCardHtml('manual', 'Manual Invoice', DASH_BUCKETS.manual, 'warn')}
       </div>`;
   }
 
