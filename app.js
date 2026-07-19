@@ -388,10 +388,18 @@ async function saveStatusChange(row, newStatus) {
   const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
   if (res.success) {
     toast('Status updated.', 'ok');
+    // Poora page reload/refetch karne ki zaroorat nahi — sirf isi client ka
+    // status STATE mein update karke halke se dashboards/summary re-render
+    // karo, taake turant agli row edit ki ja sake, wait na karna pade.
+    const client = STATE.clients.find(c => c.row === row);
+    if (client) client['Invoice Status'] = newStatus;
+    renderSummaryPanel();
+    renderDashboards();
+    renderChargeStageTable();
   } else {
     toast(res.error, 'error');
   }
-  loadClients();
+  revertStatusCell(row); // dropdown ko wapas badge mein badal do (success ho ya fail)
 }
 
 // ============================================================
