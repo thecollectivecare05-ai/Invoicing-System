@@ -613,8 +613,28 @@ function clientsByStatus(list) {
   return STATE.clients.filter(c => statusMatches(c['Invoice Status'], list));
 }
 
+// ⭐ "Card Charge Status" ko sirf Master sheet clients tak mehdood nahi
+// rehna chahiye — "Manual Invoices" sheet ki rows (Melissa/Maribel/Sabah
+// jaisi manual invoices) bhi charge hoti hain aur unka apna Invoice Status
+// (Sent/Paid/Failed/ACH-Initiated) hota hai. Ye dono jagah se combine
+// karke filter karta hai.
+function clientsByStatusMerged_(list) {
+  const allRows = STATE.clients.concat(STATE.manualChargeRows || []);
+  return allRows.filter(c => statusMatches(c['Invoice Status'], list));
+}
+
+// Master rows ka amount "Total Invoice ($)" mein hota hai, Manual Invoices
+// sheet ki rows ka amount "Amount ($)" mein — dono field names handle
+// karta hai, taake manual invoices ki value bhi sum mein shamil ho.
+function invoiceAmount_(c) {
+  const raw = (c['Total Invoice ($)'] !== undefined && c['Total Invoice ($)'] !== '')
+    ? c['Total Invoice ($)']
+    : c['Amount ($)'];
+  return parseFloat(raw) || 0;
+}
+
 function sumInvoiceAmt_(rows) {
-  return rows.reduce((s, c) => s + (parseFloat(c['Total Invoice ($)']) || 0), 0);
+  return rows.reduce((s, c) => s + invoiceAmount_(c), 0);
 }
 
 function renderDashboards() {
@@ -622,9 +642,10 @@ function renderDashboards() {
     sent: clientsByStatus(SENT_STATUSES),
     pending: clientsByStatus(PENDING_STATUSES),
     manual: clientsByStatus(MANUAL_STATUSES),
-    charged: clientsByStatus(CHARGED_STATUSES),
-    chargePending: clientsByStatus(CHARGE_PENDING_STATUSES),
-    failed: clientsByStatus(FAILED_STATUSES)
+    // ⭐ Charge-related buckets ab Master + Manual Invoices dono se aate hain
+    charged: clientsByStatusMerged_(CHARGED_STATUSES),
+    chargePending: clientsByStatusMerged_(CHARGE_PENDING_STATUSES),
+    failed: clientsByStatusMerged_(FAILED_STATUSES)
   };
 
   const invoiceEl = document.getElementById('invoiceDash');
@@ -859,7 +880,7 @@ function renderChargeStageSummary() {
 
 const allRows = STATE.clients.concat(STATE.manualChargeRows || []);
   const byStatus = list => allRows.filter(c => list.includes(String(c['Invoice Status'] || '').trim()));
-  const sumAmt = rows => rows.reduce((s, c) => s + (parseFloat(c['Total Invoice ($)']) || 0), 0);
+  const sumAmt = rows => rows.reduce((s, c) => s + invoiceAmount_(c), 0);
   const invoiceWord = n => n + ' invoice' + (n === 1 ? '' : 's');
 
   const buckets = [
