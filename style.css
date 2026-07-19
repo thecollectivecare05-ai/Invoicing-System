@@ -177,6 +177,7 @@ main {
   display: flex;
   align-items: flex-start;
   gap: 24px;
+  margin-top: 28px;
 }
 
 .table-col {
@@ -355,6 +356,10 @@ main {
 }
 
 .toolbar h2 {
+  flex: 0 0 auto;
+}
+
+.toolbar h2 {
   font-family: 'Fraunces', serif;
   font-weight: 600;
   font-size: 20px;
@@ -407,6 +412,16 @@ main {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1150px) {
+  .toolbar-actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
 }
 
 /* ---------- Stage 2: Charge Customers page ---------- */
