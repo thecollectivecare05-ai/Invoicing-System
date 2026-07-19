@@ -72,11 +72,11 @@ const INVOICE_STATUS_OPTIONS = [
 ];
 
 // Status groupings used by the dashboards below
-const SENT_STATUSES = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed'];
+const SENT_STATUSES = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed', 'Manual Invoice Sent - Check Sheet'];
 const PENDING_STATUSES = ['Need to Send Invoice', ''];
 // Manual invoice clients (Melissa/Maribel/Sabah, ya future manual clients) —
 // inhe alag dashboard card mein dikhaya jata hai, "Pending" mein nahi.
-const MANUAL_STATUSES = ['Manual Invoice - Check Sheet', 'Manual Invoice Sent - Check Sheet'];
+const MANUAL_STATUSES = ['Manual Invoice - Check Sheet'];
 const CHARGED_STATUSES = ['Paid', 'Already Paid'];
 const CHARGE_PENDING_STATUSES = ['Sent', 'ACH-Initiated'];
 const FAILED_STATUSES = ['Failed'];
