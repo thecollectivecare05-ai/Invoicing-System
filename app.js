@@ -6,6 +6,7 @@ let STATE = {
   code: sessionStorage.getItem('code') || null,
   role: sessionStorage.getItem('role') || null,
   clients: [],
+  manualChargeRows: [],
   searchTerm: '',
   paymentMethodsLoaded: false, // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
   chargeStageStatusFilter: null, // set niche CHARGE_STAGE_STATUSES define hone ke baad (default filter)
@@ -271,7 +272,11 @@ async function loadClients() {
     wrap.innerHTML = `<div class="empty-state"><div class="mark">Something went wrong</div>${escapeHtml(res.error)}</div>`;
     return;
   }
-  STATE.clients = res.data;
+    STATE.clients = res.data;
+
+  const manualRes = await apiCall('getManualInvoicesForCharge', {});
+  STATE.manualChargeRows = manualRes.success ? manualRes.data : [];
+
   document.getElementById('clientCount').textContent = res.data.length;
   renderTable();
   renderSummaryPanel();
@@ -769,7 +774,8 @@ function renderChargeStageSummary() {
   const el = document.getElementById('chargeStageSummary');
   if (!el) return;
 
-  const byStatus = list => STATE.clients.filter(c => list.includes(String(c['Invoice Status'] || '').trim()));
+const allRows = STATE.clients.concat(STATE.manualChargeRows || []);
+  const byStatus = list => allRows.filter(c => list.includes(String(c['Invoice Status'] || '').trim()));
   const sumAmt = rows => rows.reduce((s, c) => s + (parseFloat(c['Total Invoice ($)']) || 0), 0);
   const invoiceWord = n => n + ' invoice' + (n === 1 ? '' : 's');
 
@@ -817,7 +823,7 @@ function renderChargeStageTable() {
   const wrap = document.getElementById('chargeStageTableWrap');
   if (!wrap) return; // Stage 2 abhi DOM mein nahi (safety check)
 
-  const rows = STATE.clients.filter(c => STATE.chargeStageStatusFilter.has(String(c['Invoice Status'] || '').trim()));
+  const allRows = STATE.clients.concat(STATE.manualChargeRows || []);   const rows = allRows.filter(c => STATE.chargeStageStatusFilter.has(String(c['Invoice Status'] || '').trim()));
   CHARGE_STAGE_LAST_ROWS = rows; // Download Excel button isi (currently filtered) list ko export karta hai
   const countEl = document.getElementById('chargeStageCount');
   if (countEl) countEl.textContent = rows.length;
