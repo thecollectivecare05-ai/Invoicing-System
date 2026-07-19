@@ -281,6 +281,7 @@ async function loadClients() {
   renderTable();
   renderSummaryPanel();
   renderDashboards();
+  renderCycleProgress();
   renderChargeStageTable(); // same STATE.clients — Stage 2 ka Invoice Status Stage 1 jaisa hi rehta hai
 }
 
@@ -475,6 +476,7 @@ async function saveStatusChange(row, newStatus) {
     if (client) client['Invoice Status'] = newStatus;
     renderSummaryPanel();
     renderDashboards();
+    renderCycleProgress();
     renderChargeStageTable();
   } else {
     toast(res.error, 'error');
@@ -513,6 +515,74 @@ function renderSummaryPanel() {
     html += '</div>';
   }
   html += `<div class="summary-grand"><span>Grand Total</span><span>$${grandTotal.toFixed(2)}</span></div>`;
+  el.innerHTML = html;
+}
+
+// ============================================================
+// INVOICE CYCLE PROGRESS panel (right sidebar, below Summary By Practice)
+// Reuses DASH_BUCKETS (already computed in renderDashboards()) — isliye
+// renderCycleProgress() hamesha renderDashboards() ke BAAD call karna hai.
+// ============================================================
+function computeCycleProgress_() {
+  const total = STATE.clients.filter(c => String(c['Client Name'] || '').trim() !== '').length;
+  const monthSet = STATE.clients.filter(c => String(c['Practice Collection Month'] || '').trim() !== '').length;
+
+  const sentTotal = (DASH_BUCKETS.sent || []).length;        // Sent/Paid/Already Paid/ACH-Initiated/Failed/Manual Sent
+  const pendingTotal = (DASH_BUCKETS.pending || []).length;  // Need to Send Invoice / blank
+  const chargedTotal = (DASH_BUCKETS.charged || []).length;  // Paid/Already Paid
+  const chargePendingTotal = (DASH_BUCKETS.chargePending || []).length; // Sent/ACH-Initiated
+  const failedTotal = (DASH_BUCKETS.failed || []).length;    // Failed
+
+  return [
+    {
+      label: 'Invoice Month Set',
+      detail: monthSet + ' / ' + total + ' practices ("Prepare Sheet to Send Invoice")',
+      state: total > 0 && monthSet === total ? 'done' : (monthSet > 0 ? 'progress' : 'pending')
+    },
+    {
+      label: 'Invoices Sent',
+      detail: sentTotal + ' sent · ' + pendingTotal + ' still pending',
+      state: total > 0 && pendingTotal === 0 && sentTotal > 0 ? 'done' : (sentTotal > 0 ? 'progress' : 'pending')
+    },
+    {
+      label: 'Charge Customers',
+      detail: chargedTotal + ' charged · ' + chargePendingTotal + ' waiting to be charged',
+      state: sentTotal > 0 && chargePendingTotal === 0 && chargedTotal > 0
+        ? 'done'
+        : (chargedTotal > 0 || chargePendingTotal > 0 ? 'progress' : 'pending')
+    },
+    {
+      label: 'Failed Charges',
+      detail: failedTotal > 0 ? failedTotal + ' need attention' : 'None right now',
+      state: failedTotal > 0 ? 'warn' : 'done'
+    },
+    {
+      label: 'Reset for Next Month',
+      detail: 'Manual last step — run once everything above is settled',
+      state: 'manual'
+    }
+  ];
+}
+
+const CYCLE_STEP_ICON_ = { done: '✅', progress: '⏳', warn: '⚠️', pending: '⬜', manual: '🔁' };
+
+function renderCycleProgress() {
+  const el = document.getElementById('cycleProgressCard');
+  if (!el) return;
+  const steps = computeCycleProgress_();
+
+  let html = '<h3 class="summary-title">Invoice Cycle Progress</h3><div class="cycle-steps">';
+  steps.forEach(s => {
+    const icon = CYCLE_STEP_ICON_[s.state] || '⬜';
+    html += `<div class="cycle-step cycle-${s.state}">
+      <div class="cycle-step-icon">${icon}</div>
+      <div class="cycle-step-text">
+        <div class="cycle-step-label">${escapeHtml(s.label)}</div>
+        <div class="cycle-step-detail">${escapeHtml(s.detail)}</div>
+      </div>
+    </div>`;
+  });
+  html += '</div>';
   el.innerHTML = html;
 }
 
