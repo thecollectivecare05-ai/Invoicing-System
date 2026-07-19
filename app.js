@@ -8,7 +8,18 @@ let STATE = {
   clients: [],
   searchTerm: '',
   paymentMethodsLoaded: false, // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
-  chargeStageStatusFilter: null // set niche CHARGE_STAGE_STATUSES define hone ke baad (default filter)
+  chargeStageStatusFilter: null, // set niche CHARGE_STAGE_STATUSES define hone ke baad (default filter)
+
+  // ⭐ Terminated Clients page
+  terminatedClients: [],
+  terminatedStageFilter: new Set(['Pending Archive', 'Archived']),
+
+  // ⭐ Reports page (Invoice History based)
+  invoiceHistory: [],
+  reportsPeriod: 'ytd',
+  reportsStatusFilter: null, // set niche REPORT_STATUS_OPTIONS_ define hone ke baad
+  reportsMethodFilter: null, // set niche REPORT_METHOD_OPTIONS_ define hone ke baad
+  reportsMonthFilter: ''
 };
 
 // There's no fixed limit on Additional Services — as many as needed can be
@@ -91,6 +102,13 @@ const CHARGE_STAGE_FILTER_OPTIONS = [
   { key: 'Already Paid', label: 'Already Paid', tone: 'ok' }
 ];
 STATE.chargeStageStatusFilter = new Set(CHARGE_STAGE_STATUSES);
+
+// ⭐ Reports page constants
+const MONTH_NAMES_ = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const REPORT_STATUS_OPTIONS_ = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed'];
+const REPORT_METHOD_OPTIONS_ = ['Credit/Debit Card', 'ACH', 'ACH and Credit/Debit'];
+STATE.reportsStatusFilter = new Set(REPORT_STATUS_OPTIONS_);
+STATE.reportsMethodFilter = new Set(REPORT_METHOD_OPTIONS_);
 
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
@@ -193,9 +211,18 @@ function showGateError(msg) {
 
 function signOut() {
   sessionStorage.clear();
-  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false, chargeStageStatusFilter: new Set(CHARGE_STAGE_STATUSES) };
+  STATE = {
+    email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false,
+    chargeStageStatusFilter: new Set(CHARGE_STAGE_STATUSES),
+    terminatedClients: [], terminatedStageFilter: new Set(['Pending Archive', 'Archived']),
+    invoiceHistory: [], reportsPeriod: 'ytd',
+    reportsStatusFilter: new Set(REPORT_STATUS_OPTIONS_), reportsMethodFilter: new Set(REPORT_METHOD_OPTIONS_),
+    reportsMonthFilter: ''
+  };
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('chargeStagePage').style.display = 'none';
+  document.getElementById('terminatedPage').style.display = 'none';
+  document.getElementById('reportsPage').style.display = 'none';
   const chargeBtn = document.getElementById('chargeCustomersBtn');
   if (chargeBtn) { chargeBtn.disabled = true; chargeBtn.title = "Run 'Load Payment Methods' first"; }
   document.getElementById('authZone').style.display = 'none';
@@ -216,6 +243,8 @@ function enterDashboard() {
   document.getElementById('addPracticeBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
   document.getElementById('sendInvoicesBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
   document.getElementById('openChargeStageBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  document.getElementById('prepareSheetBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
+  document.getElementById('clearMonthBtn').style.display = STATE.role === 'editor' ? 'inline-flex' : 'none';
 
   loadClients();
 }
@@ -384,14 +413,18 @@ function renderTerminateBtn_(c) {
   }
   return `<button class="terminate-icon-btn" title="Mark as Terminated" onclick="openTerminateDialog(${c.row})">⛔</button>`;
 }
+
+// ⭐ TERMINATION — client-name column ke saath ek chota badge, taake row
+// expand kiye bina hi dikh jaye ke client terminated hai (aur kis date se).
+// yyyy-MM-dd (backend format) -> MM-DD-YYYY (display format). Agar value
+// pehle se is format mein nahi hai to jaisa hai waisa hi wapis kar deta hai.
 function formatDateDisplay_(isoDate) {
   if (!isoDate) return '';
   const parts = String(isoDate).split('-');
   if (parts.length !== 3) return isoDate;
-  return parts[1] + '-' + parts[2] + '-' + parts[0]; // MM-DD-YYYY
+  return parts[1] + '-' + parts[2] + '-' + parts[0];
 }
-// ⭐ TERMINATION — client-name column ke saath ek chota badge, taake row
-// expand kiye bina hi dikh jaye ke client terminated hai (aur kis date se).
+
 function renderTerminatedBadge_(c) {
   const isTerminated = String(c['Client Status'] || '').trim().toLowerCase() === 'terminated';
   if (!isTerminated) return '';
@@ -539,6 +572,12 @@ function renderDashboards() {
         ${dashCardHtml('failed', 'Failed', DASH_BUCKETS.failed, 'danger')}
       </div>`;
   }
+
+  const terminatedCountEl = document.getElementById('terminatedNavCount');
+  if (terminatedCountEl) {
+    const count = STATE.clients.filter(c => String(c['Client Status'] || '').trim().toLowerCase() === 'terminated').length;
+    terminatedCountEl.textContent = count;
+  }
 }
 
 function dashCardHtml(key, cardLabel, rows, tone) {
@@ -592,6 +631,147 @@ function openChargeStage() {
 function backToDashboard() {
   document.getElementById('chargeStagePage').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
+}
+
+// ============================================================
+// TERMINATED CLIENTS PAGE
+// ============================================================
+async function openTerminatedPage() {
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('terminatedPage').style.display = 'block';
+  await loadTerminatedClients();
+}
+
+function backFromTerminatedPage() {
+  document.getElementById('terminatedPage').style.display = 'none';
+  document.getElementById('mainApp').style.display = 'block';
+}
+
+async function loadTerminatedClients() {
+  const wrap = document.getElementById('terminatedTableWrap');
+  if (wrap) wrap.innerHTML = '<div class="empty-state"><div class="mark">Loading…</div></div>';
+
+  const res = await apiCall('getTerminatedClients', {});
+  if (!res.success) {
+    if (wrap) wrap.innerHTML = `<div class="empty-state"><div class="mark">Something went wrong</div>${escapeHtml(res.error)}</div>`;
+    return;
+  }
+  STATE.terminatedClients = res.data;
+  renderTerminatedSummary();
+  renderTerminatedFilters();
+  renderTerminatedTable();
+}
+
+function renderTerminatedSummary() {
+  const el = document.getElementById('terminatedSummary');
+  if (!el) return;
+  const all = STATE.terminatedClients;
+  const pending = all.filter(c => c.stage === 'Pending Archive');
+  const archived = all.filter(c => c.stage === 'Archived');
+
+  el.innerHTML = `
+    <div class="charge-summary-card warn">
+      <div class="charge-summary-label">Pending Archive</div>
+      <div class="charge-summary-count">${pending.length} client${pending.length === 1 ? '' : 's'}</div>
+      <div class="charge-summary-amt">Abhi Master sheet mein hain</div>
+    </div>
+    <div class="charge-summary-card ok">
+      <div class="charge-summary-label">Archived</div>
+      <div class="charge-summary-count">${archived.length} client${archived.length === 1 ? '' : 's'}</div>
+      <div class="charge-summary-amt">Master se hat chuke hain</div>
+    </div>`;
+}
+
+const TERMINATED_FILTER_OPTIONS = [
+  { key: 'Pending Archive', label: 'Pending Archive', tone: 'warn' },
+  { key: 'Archived', label: 'Archived', tone: 'ok' }
+];
+
+function renderTerminatedFilters() {
+  const wrap = document.getElementById('terminatedFilters');
+  if (!wrap) return;
+
+  let html = '<span class="filter-label">Show:</span>';
+  TERMINATED_FILTER_OPTIONS.forEach(opt => {
+    const checked = STATE.terminatedStageFilter.has(opt.key) ? 'checked' : '';
+    html += `<label class="status-filter-chip ${opt.tone}">
+      <input type="checkbox" ${checked} onchange="toggleTerminatedFilter('${escapeAttr(opt.key)}', this.checked)">
+      ${escapeHtml(opt.label)}
+    </label>`;
+  });
+  wrap.innerHTML = html;
+}
+
+function toggleTerminatedFilter(stage, checked) {
+  if (checked) STATE.terminatedStageFilter.add(stage);
+  else STATE.terminatedStageFilter.delete(stage);
+  renderTerminatedTable();
+}
+
+let TERMINATED_LAST_ROWS = [];
+
+function renderTerminatedTable() {
+  const wrap = document.getElementById('terminatedTableWrap');
+  if (!wrap) return;
+
+  const rows = STATE.terminatedClients.filter(c => STATE.terminatedStageFilter.has(c.stage));
+  TERMINATED_LAST_ROWS = rows;
+
+  const countEl = document.getElementById('terminatedPageCount');
+  if (countEl) countEl.textContent = rows.length;
+
+  let html = '<table><thead><tr>';
+  html += '<th>Client Name / Email</th><th>Termination Date</th><th>Stage</th><th>Marked On</th><th>Notes</th><th></th>';
+  html += '</tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    html += '<tr><td colspan="6" class="status-dialog-empty">No terminated clients match the selected filter above.</td></tr>';
+  } else {
+    rows.forEach(c => {
+      const isArchived = c.stage === 'Archived';
+      const stageBadge = isArchived
+        ? '<span class="stamp sent">Archived</span>'
+        : '<span class="stamp pending">Pending Archive</span>';
+      const reactivateBtn = (!isArchived && c.row)
+        ? `<button class="reactivate-icon-btn" title="Reactivate client" onclick="reactivateClient(${c.row}, '${escapeAttr(c['Client Name'])}')">↩ Reactivate</button>`
+        : '';
+      html += `<tr>
+        <td><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span><span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>
+        <td>${escapeHtml(formatDateDisplay_(c['Termination Date']))}</td>
+        <td>${stageBadge}</td>
+        <td>${escapeHtml(formatDateDisplay_(c['Marked On']) || '—')}</td>
+        <td>${escapeHtml(c['Deletion Status'] || '—')}</td>
+        <td>${reactivateBtn}</td>
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function exportTerminatedToExcel() {
+  if (typeof XLSX === 'undefined') {
+    toast('Excel export library failed to load.', 'error');
+    return;
+  }
+  if (!TERMINATED_LAST_ROWS.length) {
+    toast('Nothing to export — no rows match the current filter.', 'error');
+    return;
+  }
+  const data = TERMINATED_LAST_ROWS.map(c => ({
+    'Client Name': c['Client Name'] || '',
+    'Email': c['Email'] || '',
+    'Termination Date': c['Termination Date'] || '',
+    'Stage': c.stage || '',
+    'Marked On': c['Marked On'] || '',
+    'Notes': c['Deletion Status'] || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Terminated Clients');
+  const fileName = 'terminated-clients-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+  XLSX.writeFile(wb, fileName);
 }
 
 // ============================================================
@@ -714,6 +894,54 @@ async function handleSendInvoicesClick() {
   await runBulkAction(btn, 'sendInvoicesBulk', 'Invoices sent.');
 }
 
+// ⭐ "Prepare Sheet to Send Invoice" — sab clients ke Invoice Month mein
+// current month ("July 2026" jaisa format) bhar deta hai, Send Invoices
+// se pehle chalaya jata hai.
+async function handlePrepareSheetClick() {
+  const btn = document.getElementById('prepareSheetBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+  try {
+    const res = await apiCall('prepareInvoiceMonth', {});
+    if (res.success) {
+      toast(`Invoice Month "${res.month}" set for ${res.updated} client(s).`, 'ok');
+      await loadClients();
+    } else {
+      toast(res.error || 'Something went wrong.', 'error');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
+// ⭐ Temporary button — Invoice Month column ko poori sheet mein clear
+// kar deta hai (testing/reset ke liye).
+async function handleClearMonthClick() {
+  if (!confirm('Sab clients ka Invoice Month clear kar diya jaye? (Ye sirf testing/reset ke liye hai)')) return;
+  const btn = document.getElementById('clearMonthBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Clearing…';
+  try {
+    const res = await apiCall('clearInvoiceMonth', {});
+    if (res.success) {
+      toast(`Invoice Month cleared for ${res.updated} client(s).`, 'ok');
+      await loadClients();
+    } else {
+      toast(res.error || 'Something went wrong.', 'error');
+    }
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+}
+
 async function handleLoadPaymentMethodsClick() {
   const btn = document.getElementById('loadPaymentMethodsBtn');
   const ok = await runBulkAction(btn, 'loadPaymentMethods', 'Payment methods loaded.');
@@ -794,6 +1022,11 @@ function bindUI() {
   document.getElementById('loadPaymentMethodsBtn').addEventListener('click', handleLoadPaymentMethodsClick);
   document.getElementById('chargeCustomersBtn').addEventListener('click', handleChargeCustomersClick);
   document.getElementById('chargeStageExcelBtn').addEventListener('click', exportChargeStageToExcel);
+
+  const backFromTerminatedBtn = document.getElementById('backFromTerminatedBtn');
+  if (backFromTerminatedBtn) backFromTerminatedBtn.addEventListener('click', backFromTerminatedPage);
+  const terminatedExcelBtn = document.getElementById('terminatedExcelBtn');
+  if (terminatedExcelBtn) terminatedExcelBtn.addEventListener('click', exportTerminatedToExcel);
 
   const searchInput = document.getElementById('practiceSearch');
   if (searchInput) {
@@ -1159,6 +1392,10 @@ async function reactivateClient(row, name) {
   if (res.success) {
     toast('Client reactivate ho gaya.', 'ok');
     loadClients();
+    const terminatedPageEl = document.getElementById('terminatedPage');
+    if (terminatedPageEl && terminatedPageEl.style.display !== 'none') {
+      loadTerminatedClients();
+    }
   } else {
     toast(res.error, 'error');
   }
