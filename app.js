@@ -7,7 +7,8 @@ let STATE = {
   role: sessionStorage.getItem('role') || null,
   clients: [],
   searchTerm: '',
-  paymentMethodsLoaded: false // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
+  paymentMethodsLoaded: false, // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
+  chargeStageStatusFilter: null // set niche CHARGE_STAGE_STATUSES define hone ke baad (default filter)
 };
 
 // There's no fixed limit on Additional Services — as many as needed can be
@@ -76,6 +77,20 @@ const FAILED_STATUSES = ['Failed'];
 // invoice already ban chuka hai, warna "Need to Send Invoice" jaise clients
 // bhi list mein aa jate jinhe abhi charge nahi kiya ja sakta.
 const CHARGE_STAGE_STATUSES = ['Sent', 'ACH-Initiated', 'Failed'];
+
+// Charge Customers page ke top par status-filter chips — default sirf
+// CHARGE_STAGE_STATUSES checked rehte hain. Jab koi client charge ho kar
+// "Paid" / "Already Paid" ho jata hai to wo list se gayab ho jata hai
+// (kyunki ab charge-ready nahi raha) — is filter se banda unhi ko wapas
+// isi window mein tick karke dekh sakta hai.
+const CHARGE_STAGE_FILTER_OPTIONS = [
+  { key: 'Sent', label: 'Sent', tone: 'warn' },
+  { key: 'ACH-Initiated', label: 'ACH-Initiated', tone: 'warn' },
+  { key: 'Failed', label: 'Failed', tone: 'danger' },
+  { key: 'Paid', label: 'Paid', tone: 'ok' },
+  { key: 'Already Paid', label: 'Already Paid', tone: 'ok' }
+];
+STATE.chargeStageStatusFilter = new Set(CHARGE_STAGE_STATUSES);
 
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
@@ -176,7 +191,7 @@ function showGateError(msg) {
 
 function signOut() {
   sessionStorage.clear();
-  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false };
+  STATE = { email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false, chargeStageStatusFilter: new Set(CHARGE_STAGE_STATUSES) };
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('chargeStagePage').style.display = 'none';
   const chargeBtn = document.getElementById('chargeCustomersBtn');
@@ -512,11 +527,57 @@ function backToDashboard() {
 // ============================================================
 // STAGE 2 — CHARGE CUSTOMERS TABLE
 // ============================================================
+function renderChargeStageSummary() {
+  const el = document.getElementById('chargeStageSummary');
+  if (!el) return;
+
+  const byStatus = list => STATE.clients.filter(c => list.includes(String(c['Invoice Status'] || '').trim()));
+  const sumAmt = rows => rows.reduce((s, c) => s + (parseFloat(c['Total Invoice ($)']) || 0), 0);
+  const invoiceWord = n => n + ' invoice' + (n === 1 ? '' : 's');
+
+  const buckets = [
+    { key: 'charged', label: 'Charged', tone: 'ok', rows: byStatus(CHARGED_STATUSES) },
+    { key: 'pending', label: 'Pending', tone: 'warn', rows: byStatus(CHARGE_PENDING_STATUSES) },
+    { key: 'failed', label: 'Failed', tone: 'danger', rows: byStatus(FAILED_STATUSES) }
+  ];
+
+  el.innerHTML = buckets.map(b => `
+    <div class="charge-summary-card ${b.tone}">
+      <div class="charge-summary-label">${escapeHtml(b.label)}</div>
+      <div class="charge-summary-count">${invoiceWord(b.rows.length)}</div>
+      <div class="charge-summary-amt">$${sumAmt(b.rows).toFixed(2)}</div>
+    </div>`).join('');
+}
+
+function renderChargeStageFilters() {
+  const wrap = document.getElementById('chargeStageFilters');
+  if (!wrap) return;
+
+  let html = '<span class="filter-label">Show statuses:</span>';
+  CHARGE_STAGE_FILTER_OPTIONS.forEach(opt => {
+    const checked = STATE.chargeStageStatusFilter.has(opt.key) ? 'checked' : '';
+    html += `<label class="status-filter-chip ${opt.tone}">
+      <input type="checkbox" ${checked} onchange="toggleChargeStageFilter('${escapeAttr(opt.key)}', this.checked)">
+      ${escapeHtml(opt.label)}
+    </label>`;
+  });
+  wrap.innerHTML = html;
+}
+
+function toggleChargeStageFilter(status, checked) {
+  if (checked) STATE.chargeStageStatusFilter.add(status);
+  else STATE.chargeStageStatusFilter.delete(status);
+  renderChargeStageTable();
+}
+
 function renderChargeStageTable() {
+  renderChargeStageSummary();
+  renderChargeStageFilters();
+
   const wrap = document.getElementById('chargeStageTableWrap');
   if (!wrap) return; // Stage 2 abhi DOM mein nahi (safety check)
 
-  const rows = STATE.clients.filter(c => CHARGE_STAGE_STATUSES.includes(String(c['Invoice Status'] || '').trim()));
+  const rows = STATE.clients.filter(c => STATE.chargeStageStatusFilter.has(String(c['Invoice Status'] || '').trim()));
   const countEl = document.getElementById('chargeStageCount');
   if (countEl) countEl.textContent = rows.length;
 
@@ -526,7 +587,7 @@ function renderChargeStageTable() {
   html += '</tr></thead><tbody>';
 
   if (rows.length === 0) {
-    html += '<tr><td colspan="8" class="status-dialog-empty">No charge-ready clients yet — only clients whose invoice has already been sent to Stripe appear here (Sent / ACH-Initiated / Failed).</td></tr>';
+    html += '<tr><td colspan="8" class="status-dialog-empty">No clients match the selected status filter above.</td></tr>';
   } else {
     rows.forEach(c => {
       const status = String(c['Invoice Status'] || '').trim();
