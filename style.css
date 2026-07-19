@@ -623,6 +623,15 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
 .stamp.fail, .stamp.failed { color: var(--red); background: var(--red-bg); }
 .stamp.manual-invoice-check-sheet { color: #5B3EA6; background: #EFEAFB; }
 .stamp.other { color: var(--ink-soft); background: #EEF0F4; }
+.stamp.status-loading {
+  color: var(--ink-soft);
+  background: #EEF0F4;
+  animation: statusPulse 1s ease-in-out infinite;
+}
+@keyframes statusPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
 
 .status-click { cursor: pointer; }
 .status-click:hover .stamp { opacity: 0.8; }
