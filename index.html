@@ -43,16 +43,15 @@
 
 <!-- MAIN APP -->
 <main id="mainApp">
-  <section class="dashboards">
-    <div class="dash-block" id="invoiceDash"></div>
-    <div class="dash-block" id="chargeDash"></div>
-  </section>
-
   <div class="content-layout">
     <div class="table-col">
       <div class="toolbar">
         <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
-        <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
+        <div class="toolbar-actions">
+          <button class="btn btn-teal" id="sendInvoicesBtn" style="display:none;">Send Invoices</button>
+          <button class="btn btn-ghost" id="openChargeStageBtn" style="display:none;">Charge Customers →</button>
+          <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
+        </div>
       </div>
 
       <div class="filter-bar">
@@ -66,7 +65,26 @@
       <div class="summary-card" id="summaryCard"></div>
     </aside>
   </div>
+
+  <section class="dashboards">
+    <div class="dash-block" id="invoiceDash"></div>
+    <div class="dash-block" id="chargeDash"></div>
+  </section>
 </main>
+
+<!-- STAGE 2: Charge Customers page -->
+<section id="chargeStagePage" class="charge-stage" style="display:none;">
+  <div class="charge-stage-toolbar">
+    <button class="btn btn-ghost" id="backToDashboardBtn">← Back to Dashboard</button>
+    <h2>Charge Customers <span class="count-badge" id="chargeStageCount">0</span></h2>
+    <div class="toolbar-actions">
+      <button class="btn btn-ghost" id="loadPaymentMethodsBtn">Load Payment Methods</button>
+      <button class="btn btn-teal" id="chargeCustomersBtn" disabled title="Pehle 'Load Payment Methods' chalayein">Charge Customers</button>
+    </div>
+  </div>
+  <p class="charge-stage-hint">Sirf wo clients dikhaye ja rahe hain jinka invoice Stripe mein already ban chuka hai (Sent / ACH-Initiated / Failed). Pehle "Load Payment Methods" chalayein, uske baad "Charge Customers" enable ho jayega.</p>
+  <div class="table-wrap" id="chargeStageTableWrap"></div>
+</section>
 
 <!-- MODAL: Add / Edit Practice -->
 <div class="modal-overlay" id="modalOverlay">
