@@ -46,6 +46,24 @@
   <section class="dashboards">
     <div class="dash-block" id="invoiceDash"></div>
     <div class="dash-block" id="chargeDash"></div>
+    <div class="dash-block" id="terminatedNavBlock">
+      <h3 class="dash-title">Terminated Clients</h3>
+      <div class="dash-cards">
+        <div class="dash-card warn" onclick="openTerminatedPage()">
+          <div class="dash-count" id="terminatedNavCount">0</div>
+          <div class="dash-label">View Terminated Clients →</div>
+        </div>
+      </div>
+    </div>
+    <div class="dash-block" id="reportsNavBlock">
+      <h3 class="dash-title">Reports</h3>
+      <div class="dash-cards">
+        <div class="dash-card" onclick="openReportsPage()">
+          <div class="dash-count">📊</div>
+          <div class="dash-label">View Invoice Reports →</div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <div class="content-layout">
@@ -53,6 +71,8 @@
       <div class="toolbar">
         <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
         <div class="toolbar-actions">
+          <button class="btn btn-ghost" id="prepareSheetBtn" style="display:none;" title="Sab clients ke Invoice Month mein current month bhar deta hai">Prepare Sheet to Send Invoice</button>
+          <button class="btn btn-danger btn-small" id="clearMonthBtn" style="display:none;" title="Temporary — testing/reset ke liye">Clear Month</button>
           <button class="btn btn-teal" id="sendInvoicesBtn" style="display:none;">Send Invoices</button>
           <button class="btn btn-ghost" id="openChargeStageBtn" style="display:none;">Charge Customers →</button>
           <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
@@ -90,6 +110,37 @@
   <div class="charge-stage-filters" id="chargeStageFilters"></div>
 
   <div class="table-wrap" id="chargeStageTableWrap"></div>
+</section>
+
+<!-- TERMINATED CLIENTS PAGE -->
+<section id="terminatedPage" class="charge-stage" style="display:none;">
+  <div class="charge-stage-toolbar">
+    <button class="btn btn-ghost" id="backFromTerminatedBtn">← Back to Dashboard</button>
+    <h2>Terminated Clients <span class="count-badge" id="terminatedPageCount">0</span></h2>
+    <div class="toolbar-actions">
+      <button class="btn btn-primary" id="terminatedExcelBtn">⬇ Download Excel</button>
+    </div>
+  </div>
+  <div class="charge-stage-summary" id="terminatedSummary"></div>
+  <p class="charge-stage-hint">Termination date guzarne ke 15 din baad, aur final invoice paid confirm hone ke baad, client "Archived" ho kar Master sheet se hat jata hai. "Pending Archive" wale abhi Master mein hain aur Reactivate kiye ja sakte hain.</p>
+  <div class="charge-stage-filters" id="terminatedFilters"></div>
+  <div class="table-wrap" id="terminatedTableWrap"></div>
+</section>
+
+<!-- REPORTS PAGE -->
+<section id="reportsPage" class="charge-stage" style="display:none;">
+  <div class="charge-stage-toolbar">
+    <button class="btn btn-ghost" id="backFromReportsBtn">← Back to Dashboard</button>
+    <h2>Invoice Reports</h2>
+    <div class="toolbar-actions">
+      <button class="btn btn-primary" id="reportsExcelBtn">⬇ Download Excel</button>
+    </div>
+  </div>
+  <p class="charge-stage-hint">📌 Tracking August 2026 se shuru hui hai — us se pehle ka historical data is report mein available nahi hoga.</p>
+  <div class="reports-period-tabs" id="reportsPeriodTabs"></div>
+  <div class="charge-stage-summary" id="reportsSummary"></div>
+  <div class="charge-stage-filters" id="reportsFilters"></div>
+  <div class="table-wrap" id="reportsTableWrap"></div>
 </section>
 
 <!-- MODAL: Add / Edit Practice -->
