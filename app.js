@@ -396,7 +396,7 @@ async function saveStatusChange(row, newStatus) {
   // taake bandey ko pata chale ke save ho raha hai — jab tak poori table
   // reload/gayab nahi hoti.
   const cell = document.getElementById('statusCell-' + row);
-  if (cell) cell.innerHTML = '<span class="stamp status-loading">Updating…</span>';
+  if (cell) cell.innerHTML = '<span class="stamp status-loading">Loading…</span>';
 
   const res = await apiCall('updateClient', { row, data: { 'Invoice Status': newStatus } });
   if (res.success) {
