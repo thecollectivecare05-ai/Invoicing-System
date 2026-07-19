@@ -55,15 +55,6 @@
         </div>
       </div>
     </div>
-    <div class="dash-block" id="reportsNavBlock">
-      <h3 class="dash-title">Reports</h3>
-      <div class="dash-cards">
-        <div class="dash-card" onclick="openReportsPage()">
-          <div class="dash-count">📊</div>
-          <div class="dash-label">View Invoice Reports →</div>
-        </div>
-      </div>
-    </div>
   </section>
 
   <div class="content-layout">
@@ -125,22 +116,6 @@
   <p class="charge-stage-hint">Termination date guzarne ke 15 din baad, aur final invoice paid confirm hone ke baad, client "Archived" ho kar Master sheet se hat jata hai. "Pending Archive" wale abhi Master mein hain aur Reactivate kiye ja sakte hain.</p>
   <div class="charge-stage-filters" id="terminatedFilters"></div>
   <div class="table-wrap" id="terminatedTableWrap"></div>
-</section>
-
-<!-- REPORTS PAGE -->
-<section id="reportsPage" class="charge-stage" style="display:none;">
-  <div class="charge-stage-toolbar">
-    <button class="btn btn-ghost" id="backFromReportsBtn">← Back to Dashboard</button>
-    <h2>Invoice Reports</h2>
-    <div class="toolbar-actions">
-      <button class="btn btn-primary" id="reportsExcelBtn">⬇ Download Excel</button>
-    </div>
-  </div>
-  <p class="charge-stage-hint">📌 Tracking August 2026 se shuru hui hai — us se pehle ka historical data is report mein available nahi hoga.</p>
-  <div class="reports-period-tabs" id="reportsPeriodTabs"></div>
-  <div class="charge-stage-summary" id="reportsSummary"></div>
-  <div class="charge-stage-filters" id="reportsFilters"></div>
-  <div class="table-wrap" id="reportsTableWrap"></div>
 </section>
 
 <!-- MODAL: Add / Edit Practice -->
