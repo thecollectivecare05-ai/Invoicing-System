@@ -353,11 +353,19 @@ function renderTable() {
 // Value shown for a SUMMARY_COLUMNS cell — "Additional Amount ($)" is computed
 // on the fly (sum of this row's additional services), everything else comes
 // straight from the sheet.
+function formatMoney_(val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return '';
+  return '$' + n.toFixed(2);
+}
+
 function getSummaryCellValue(c, col) {
   if (col === 'Additional Amount ($)') {
     const nums = getServiceNumbers_(c);
-    return nums.length ? servicesTotal(c, nums).toFixed(2) : '0.00';
+    return formatMoney_(nums.length ? servicesTotal(c, nums) : 0);
   }
+  const isMoneyCol = /\(\$\)/.test(col) || col === 'Monthly Minimum (Billing)';
+  if (isMoneyCol) return formatMoney_(c[col]);
   return c[col] != null ? c[col] : '';
 }
 
