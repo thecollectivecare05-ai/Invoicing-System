@@ -180,7 +180,7 @@ function signOut() {
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('chargeStagePage').style.display = 'none';
   const chargeBtn = document.getElementById('chargeCustomersBtn');
-  if (chargeBtn) { chargeBtn.disabled = true; chargeBtn.title = "Pehle 'Load Payment Methods' chalayein"; }
+  if (chargeBtn) { chargeBtn.disabled = true; chargeBtn.title = "Run 'Load Payment Methods' first"; }
   document.getElementById('authZone').style.display = 'none';
   document.getElementById('loginForm').reset();
   document.getElementById('gate').style.display = 'flex';
@@ -526,7 +526,7 @@ function renderChargeStageTable() {
   html += '</tr></thead><tbody>';
 
   if (rows.length === 0) {
-    html += '<tr><td colspan="8" class="status-dialog-empty">Koi charge-ready client nahi hai — sirf wo clients yahan aate hain jinka invoice Stripe mein bhej diya gaya ho (Sent / ACH-Initiated / Failed).</td></tr>';
+    html += '<tr><td colspan="8" class="status-dialog-empty">No charge-ready clients yet — only clients whose invoice has already been sent to Stripe appear here (Sent / ACH-Initiated / Failed).</td></tr>';
   } else {
     rows.forEach(c => {
       const status = String(c['Invoice Status'] || '').trim();
