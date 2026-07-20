@@ -1,18 +1,27 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root {
-  --ink: #14213D;
-  --ink-soft: #5C6B84;
-  --paper: #F4F5F7;
+  /* EnVisionMD brand */
+  --brand-navy: #0B2F52;
+  --brand-navy-dark: #081F38;
+  --brand-orange: #F47B20;
+  --brand-orange-dark: #D9670F;
+
+  --ink: #0B2F52;
+  --ink-soft: #5C6E85;
+  --paper: #F5F6F8;
   --paper-raised: #FFFFFF;
-  --line: #DCE0E8;
+  --line: #DDE3EA;
+
+  /* status colors — kept as-is on purpose (task nature indicators) */
   --teal: #0F766E;
   --teal-bg: #E4F3F1;
   --amber: #B45309;
   --amber-bg: #FBEEE0;
   --red: #B91C1C;
   --red-bg: #FBEAEA;
-  --focus: #2952CC;
+
+  --focus: #F47B20;
 }
 
 * { box-sizing: border-box; }
@@ -35,14 +44,15 @@ a { color: inherit; }
 
 /* ---------- Header / Ledger bar ---------- */
 .ledger-header {
-  background: var(--ink);
+  background: linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy-dark) 100%);
   color: #fff;
-  padding: 18px 28px;
+  padding: 16px 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  border-bottom: 3px solid var(--brand-orange);
 }
 
 .ledger-title {
@@ -55,10 +65,16 @@ a { color: inherit; }
   gap: 10px;
 }
 
+.brand-mark {
+  font-weight: 700;
+}
+.brand-mark .brand-en { color: #fff; }
+.brand-mark .brand-md { color: var(--brand-orange); }
+
 .ledger-title .rule {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
-  color: #9AA6C4;
+  color: #9FB3CC;
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
@@ -86,10 +102,10 @@ a { color: inherit; }
   letter-spacing: 0.8px;
   padding: 2px 6px;
   border-radius: 3px;
-  background: var(--teal);
+  background: var(--brand-orange);
   color: #fff;
 }
-.role-tag.viewer { background: var(--amber); }
+.role-tag.viewer { background: rgba(255,255,255,0.18); }
 
 .signout-btn {
   background: transparent;
@@ -417,8 +433,8 @@ main {
   gap: 6px;
 }
 
-.btn-primary { background: var(--ink); color: #fff; }
-.btn-primary:hover { background: #1f2f52; }
+.btn-primary { background: var(--brand-orange); color: #fff; }
+.btn-primary:hover { background: var(--brand-orange-dark); }
 
 .btn-ghost { background: transparent; border-color: var(--line); color: var(--ink); }
 .btn-ghost:hover { background: var(--paper-raised); }
@@ -718,7 +734,6 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
 .stamp.pending, .stamp.need-to-send-invoice, .stamp.ach-initiated { color: var(--amber); background: var(--amber-bg); }
 .stamp.fail, .stamp.failed { color: var(--red); background: var(--red-bg); }
 .stamp.manual-invoice-check-sheet { color: #5B3EA6; background: #EFEAFB; }
-.stamp.do-not-invoice { color: var(--ink-soft); background: #EEF0F4; border: 1px dashed var(--line); }
 .stamp.other { color: var(--ink-soft); background: #EEF0F4; }
 .stamp.status-loading {
   color: var(--ink-soft);
