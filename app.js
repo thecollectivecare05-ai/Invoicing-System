@@ -426,7 +426,7 @@ function toggleDetails(row) {
 // "Need to Send Invoice" is the real status value used by the backend
 // (Prepare Sheet / Send Invoices logic) — but to the user it should just
 // read as "Pending" until an invoice has actually gone out.
-const STATUS_DISPLAY_LABELS = { 'Need to Send Invoice': 'Pending' };
+const STATUS_DISPLAY_LABELS = {};
 
 function statusStamp(status) {
   const s = String(status || 'Pending').trim();
