@@ -60,10 +60,12 @@
   <div class="content-layout">
     <div class="table-col">
       <div class="toolbar">
-        <h2>Practices <span class="count-badge" id="clientCount">0</span></h2>
+        <h2>Practices <span class="count-badge" id="clientCount">0</span>
+          <button class="refresh-btn" id="refreshClientsBtn" title="Refresh">⟳</button>
+        </h2>
         <div class="toolbar-actions">
-          <button class="btn btn-ghost" id="prepareSheetBtn" style="display:none;" title="Fills the current month into the Invoice Month field for all clients">Prepare Sheet to Send Invoice</button>
           <button class="btn btn-danger btn-small" id="clearMonthBtn" style="display:none;" title="Temporary — for testing/reset purposes">Clear Month</button>
+          <button class="btn btn-ghost" id="prepareSheetBtn" style="display:none;" title="Fills the current month into the Invoice Month field for all clients">Prepare Sheet to Send Invoice</button>
           <button class="btn btn-teal" id="sendInvoicesBtn" style="display:none;">Send Invoices</button>
           <button class="btn btn-ghost" id="openChargeStageBtn" style="display:none;">Charge Customers →</button>
           <button class="btn btn-primary" id="addPracticeBtn" style="display:none;">+ Add Practice</button>
