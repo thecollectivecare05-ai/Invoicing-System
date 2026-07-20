@@ -431,7 +431,7 @@ const STATUS_DISPLAY_LABELS = {};
 
 function statusStamp(status) {
   const s = String(status || 'Pending').trim();
-  const cls = s.toLowerCase().replace(/\s+/g, '-');
+  const cls = s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const displayLabel = STATUS_DISPLAY_LABELS[s] || s;
   return `<span class="stamp ${cls}">${escapeHtml(displayLabel)}</span>`;
 }
