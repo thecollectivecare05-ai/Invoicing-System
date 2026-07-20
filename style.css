@@ -320,6 +320,10 @@ main {
 .dash-card {
   flex: 1 1 0;
   min-width: 90px;
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   cursor: pointer;
   border: 1.5px solid var(--line);
   border-radius: 8px;
