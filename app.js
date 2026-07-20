@@ -105,7 +105,7 @@ STATE.chargeStageStatusFilter = new Set(CHARGE_STAGE_STATUSES);
 const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
   { key: 'Email', type: 'email' },
-  { key: 'Medical Billing Rate (%)', type: 'text', hint: 'e.g. 6% or 6' },
+  { key: 'Medical Billing Rate (%)', type: 'text', hint: 'e.g. 6 or 6% — always saved as a percentage' },
   { key: 'Monthly Minimum (Billing)', type: 'number' },
   { key: 'Benefits Verification Rate ($)', type: 'number' }
 ];
@@ -394,10 +394,16 @@ function toggleDetails(row) {
   btn.textContent = isOpen ? '▸' : '▾';
 }
 
+// "Need to Send Invoice" is the real status value used by the backend
+// (Prepare Sheet / Send Invoices logic) — but to the user it should just
+// read as "Pending" until an invoice has actually gone out.
+const STATUS_DISPLAY_LABELS = { 'Need to Send Invoice': 'Pending' };
+
 function statusStamp(status) {
   const s = String(status || 'Pending').trim();
   const cls = s.toLowerCase().replace(/\s+/g, '-');
-  return `<span class="stamp ${cls}">${escapeHtml(s)}</span>`;
+  const displayLabel = STATUS_DISPLAY_LABELS[s] || s;
+  return `<span class="stamp ${cls}">${escapeHtml(displayLabel)}</span>`;
 }
 
 function renderStatusCell(c, isEditor) {
@@ -1365,6 +1371,21 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
     const inputs = document.querySelectorAll('[data-field]');
     const values = {};
     inputs.forEach(el => values[el.dataset.field] = el.value.trim());
+
+    // Medical Billing Rate (%) should always be stored as a percentage —
+    // if the user typed a plain number (e.g. "6"), add the % sign automatically.
+    const rateKey = 'Medical Billing Rate (%)';
+    if (values[rateKey]) {
+      let rateVal = values[rateKey].trim();
+      if (!rateVal.includes('%')) {
+        const num = parseFloat(rateVal);
+        if (!isNaN(num)) {
+          const pct = (num > 0 && num < 1) ? num * 100 : num;
+          rateVal = (Math.round(pct * 100) / 100) + '%';
+        }
+      }
+      values[rateKey] = rateVal;
+    }
     // Billing Amount ($) / Benefits Amount ($) / Total Invoice ($) are not
     // sent from here — the backend (restoreRowFormulas_ in WebApp.gs) sets
     // live formulas for all three right after this save, using the
