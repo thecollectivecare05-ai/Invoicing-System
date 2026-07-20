@@ -763,6 +763,7 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
 .stamp.pending, .stamp.need-to-send-invoice, .stamp.ach-initiated { color: var(--amber); background: var(--amber-bg); }
 .stamp.fail, .stamp.failed { color: var(--red); background: var(--red-bg); }
 .stamp.manual-invoice-check-sheet { color: #5B3EA6; background: #EFEAFB; }
+.stamp.pending-manual-invoice { color: #B8860B; background: #FBF3D6; }
 .stamp.other { color: var(--ink-soft); background: #EEF0F4; }
 .stamp.status-loading {
   color: var(--ink-soft);
