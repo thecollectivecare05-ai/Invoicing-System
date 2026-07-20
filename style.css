@@ -299,7 +299,8 @@ main {
   flex-wrap: wrap;
 }
 .dash-block {
-  flex: 1 1 300px;
+  flex: 1 1 0;
+  min-width: 260px;
   background: var(--paper-raised);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -317,7 +318,8 @@ main {
   flex-wrap: wrap;
 }
 .dash-card {
-  flex: 1 1 100px;
+  flex: 1 1 0;
+  min-width: 90px;
   cursor: pointer;
   border: 1.5px solid var(--line);
   border-radius: 8px;
