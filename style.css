@@ -812,7 +812,7 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
   border-radius: 6px;
   background: var(--paper);
 }
-.field input:focus, .field select:focus { border-color: var(--focus); }
+.field input:focus, .field select:focus { border-color: var(--focus); }  .money-input {   display: flex;   align-items: center;   border: 1px solid var(--line);   border-radius: 6px;   background: var(--paper);   overflow: hidden; } .money-input:focus-within { border-color: var(--focus); } .money-prefix {   padding: 9px 0 9px 10px;   color: var(--ink-soft);   font-size: 13.5px;   font-family: 'IBM Plex Sans', sans-serif; } .money-input input {   border: none;   background: transparent;   padding: 9px 10px 9px 4px;   font-family: 'IBM Plex Sans', sans-serif;   font-size: 13.5px;   width: 100%;   min-width: 0; } .money-input input:focus { outline: none; }
 
 .field-readonly {
   font-family: 'IBM Plex Sans', sans-serif;
