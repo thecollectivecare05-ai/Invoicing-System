@@ -7,6 +7,7 @@ let STATE = {
   role: sessionStorage.getItem('role') || null,
   clients: [],
   manualChargeRows: [],
+  autoRefreshTimer: null,
   searchTerm: '',
   paymentMethodsLoaded: false, // Stage 2: "Charge Customers" button lock — true hote hi enable hota hai (session ke liye; reload par phir se Load karna hoga)
   chargeStageStatusFilter: null, // set niche CHARGE_STAGE_STATUSES define hone ke baad (default filter)
@@ -202,9 +203,11 @@ function showGateError(msg) {
 }
 
 function signOut() {
+  stopAutoRefresh();
   sessionStorage.clear();
   STATE = {
     email: null, code: null, role: null, clients: [], searchTerm: '', paymentMethodsLoaded: false,
+    autoRefreshTimer: null,
     chargeStageStatusFilter: new Set(CHARGE_STAGE_STATUSES),
     terminatedClients: [], terminatedStageFilter: new Set(['Pending Archive', 'Archived'])
   };
@@ -235,6 +238,26 @@ function enterDashboard() {
   });
 
   loadClients();
+  startAutoRefresh();
+}
+
+// ============================================================
+// AUTO-REFRESH — every 30 seconds, plus a manual refresh button
+// ============================================================
+const AUTO_REFRESH_INTERVAL_MS = 30000;
+
+function startAutoRefresh() {
+  stopAutoRefresh(); // avoid stacking multiple timers if this ever gets called twice
+  STATE.autoRefreshTimer = setInterval(() => {
+    loadClients();
+  }, AUTO_REFRESH_INTERVAL_MS);
+}
+
+function stopAutoRefresh() {
+  if (STATE.autoRefreshTimer) {
+    clearInterval(STATE.autoRefreshTimer);
+    STATE.autoRefreshTimer = null;
+  }
 }
 
 // ============================================================
@@ -268,9 +291,13 @@ async function loadClients() {
     wrap.innerHTML = '<div class="empty-state"><div class="mark">Loading…</div></div>';
   }
 
+  const refreshBtn = document.getElementById('refreshClientsBtn');
+  if (refreshBtn) refreshBtn.classList.add('spinning');
+
   const res = await apiCall('getClients', {});
   if (!res.success) {
     wrap.innerHTML = `<div class="empty-state"><div class="mark">Something went wrong</div>${escapeHtml(res.error)}</div>`;
+    if (refreshBtn) refreshBtn.classList.remove('spinning');
     return;
   }
     STATE.clients = res.data;
@@ -284,6 +311,8 @@ async function loadClients() {
   renderDashboards();
   renderCycleProgress();
   renderChargeStageTable(); // same STATE.clients — Stage 2 ka Invoice Status Stage 1 jaisa hi rehta hai
+
+  if (refreshBtn) refreshBtn.classList.remove('spinning');
 }
 
 function getFilteredClients() {
@@ -1153,6 +1182,9 @@ function bindUI() {
   document.getElementById('modalOverlay').addEventListener('click', e => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
+
+  const refreshClientsBtn = document.getElementById('refreshClientsBtn');
+  if (refreshClientsBtn) refreshClientsBtn.addEventListener('click', () => loadClients());
 
   document.getElementById('sendInvoicesBtn').addEventListener('click', handleSendInvoicesClick);
   const prepareSheetBtn = document.getElementById('prepareSheetBtn');
