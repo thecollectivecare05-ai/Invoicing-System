@@ -1027,7 +1027,7 @@ async function handlePrepareSheetClick() {
 // ⭐ Temporary button — Invoice Month column ko poori sheet mein clear
 // kar deta hai (testing/reset ke liye).
 async function handleClearMonthClick() {
-  if (!confirm('Sab clients ka Invoice Month clear kar diya jaye? (Ye sirf testing/reset ke liye hai)')) return;
+  if (!confirm('Clear the Invoice Month for all clients? (This is only for testing/reset purposes)')) return;
   const btn = document.getElementById('clearMonthBtn');
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -1053,7 +1053,7 @@ async function handleClearMonthClick() {
 // Customer ID, Payment Method ID, Invoice ID) taake agla billing cycle
 // fresh shuru ho sake. Invoice Status jaan-boojh kar touch nahi hota.
 async function handleResetNextMonthClick() {
-  if (!confirm('Agle mahine ke liye reset kiya jaye?\n\nYe columns poori tarah clear ho jayengi (sab clients ke liye):\n- Practice Collection Month\n- Practice Monthly Collection ($)\n- No. of Verified Benefits\n- Stripe Customer ID\n- Payment Method ID\n- Invoice ID\n- Remarks\n\nInvoice Status smart reset hoga:\n- "Manual Invoice Sent - Check Sheet" → wapas "Manual Invoice - Check Sheet"\n- "Do Not Invoice" → waisa hi rahega (chhua nahi jayega)\n- Baaki sab status → blank/Pending ho jayenge\n\nYe action undo nahi ho sakta.')) return;
+  if (!confirm('Reset for next month?\n\nThese columns will be fully cleared (for all clients):\n- Practice Collection Month\n- Practice Monthly Collection ($)\n- No. of Verified Benefits\n- Stripe Customer ID\n- Payment Method ID\n- Invoice ID\n- Remarks\n\nInvoice Status will be smart-reset:\n- "Manual Invoice Sent - Check Sheet" → back to "Manual Invoice - Check Sheet"\n- "Do Not Invoice" → left untouched\n- All other statuses → cleared to blank/Pending\n\nThis action cannot be undone.')) return;
   const btn = document.getElementById('resetNextMonthBtn');
   const originalText = btn.textContent;
   btn.disabled = true;
@@ -1499,7 +1499,7 @@ function setTerminateMsg(msg, type) {
 
 async function confirmTerminate() {
   const dateVal = document.getElementById('terminateDateInput').value;
-  if (!dateVal) { setTerminateMsg('Termination date select karna zaroori hai.', 'error'); return; }
+  if (!dateVal) { setTerminateMsg('Please select a termination date.', 'error'); return; }
   if (!TERMINATE_TARGET_ROW) return;
 
   const confirmBtn = document.getElementById('terminateDialogConfirmBtn');
@@ -1516,7 +1516,7 @@ async function confirmTerminate() {
   confirmBtn.textContent = 'Confirm Termination';
 
   if (res.success) {
-    toast('Client Terminated mark ho gaya.', 'ok');
+    toast('Client marked as Terminated.', 'ok');
     closeTerminateDialog();
     loadClients();
   } else {
@@ -1525,10 +1525,10 @@ async function confirmTerminate() {
 }
 
 async function reactivateClient(row, name) {
-  if (!confirm(`"${name}" ko wapis Active karna hai? Invoicing normally resume ho jayegi.`)) return;
+  if (!confirm(`Set "${name}" back to Active? Invoicing will resume normally.`)) return;
   const res = await apiCall('reactivateClient', { row });
   if (res.success) {
-    toast('Client reactivate ho gaya.', 'ok');
+    toast('Client reactivated.', 'ok');
     loadClients();
     const terminatedPageEl = document.getElementById('terminatedPage');
     if (terminatedPageEl && terminatedPageEl.style.display !== 'none') {
