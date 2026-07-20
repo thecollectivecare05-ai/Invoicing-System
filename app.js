@@ -106,12 +106,12 @@ const REQUIRED_FIELDS = [
   { key: 'Client Name', type: 'text' },
   { key: 'Email', type: 'email' },
   { key: 'Medical Billing Rate (%)', type: 'text', hint: 'e.g. 6 or 6% — always saved as a percentage' },
-  { key: 'Monthly Minimum (Billing)', type: 'number' },
-  { key: 'Benefits Verification Rate ($)', type: 'number' }
+  { key: 'Monthly Minimum (Billing)', type: 'money' },
+  { key: 'Benefits Verification Rate ($)', type: 'money' },
+  { key: 'Payment Method', type: 'select', options: ['Credit/Debit Card', 'ACH', 'ACH and Credit/Debit'] }
 ];
 
 const OPTIONAL_ADD_FIELDS = [
-  { key: 'Payment Method', type: 'select', options: ['Credit/Debit Card', 'ACH', 'ACH and Credit/Debit'] },
   { key: 'Practice Collection Month', type: 'text', hint: 'e.g. July 2026' },
   { key: 'Special Instructions', type: 'text' }
 ];
@@ -1259,6 +1259,12 @@ function formatFieldValue(key, val) {
       return (Math.round(pct * 100) / 100) + '%';
     }
   }
+  if (key === 'Monthly Minimum (Billing)' || key === 'Benefits Verification Rate ($)') {
+    const s = String(val).trim();
+    if (s.startsWith('$')) return s;
+    const num = parseFloat(s);
+    if (!isNaN(num)) return '$' + num.toFixed(2);
+  }
   return val;
 }
 
@@ -1295,8 +1301,10 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
       html += `<option value="">—</option>`;
       f.options.forEach(o => html += `<option value="${escapeAttr(o)}" ${val === o ? 'selected' : ''}>${escapeHtml(o)}</option>`);
       html += `</select>`;
+    } else if (f.type === 'money') {
+      html += `<div class="money-input"><span class="money-prefix">$</span><input data-field="${escapeAttr(f.key)}" type="number" min="0" step="0.01" value="${escapeAttr(val)}" placeholder="${f.hint ? escapeAttr(f.hint) : ''}"></div>`;
     } else {
-      html += `<input data-field="${escapeAttr(f.key)}" type="${f.type === 'number' ? 'number' : (f.type === 'email' ? 'email' : 'text')}" value="${escapeAttr(val)}" placeholder="${f.hint ? escapeAttr(f.hint) : ''}">`;
+      html += `<input data-field="${escapeAttr(f.key)}" type="${f.type === 'number' ? 'number' : (f.type === 'email' ? 'email' : 'text')}" ${f.type === 'number' ? 'min="0"' : ''} value="${escapeAttr(val)}" placeholder="${f.hint ? escapeAttr(f.hint) : ''}">`;
     }
     html += `</div>`;
   });
@@ -1368,9 +1376,22 @@ function renderModal({ title, sub, fields, values, onSubmit, rowActions, lockedF
   footer.innerHTML = footerHtml;
   document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
   document.getElementById('modalSaveBtn').addEventListener('click', async () => {
-    const inputs = document.querySelectorAll('[data-field]');
+const inputs = document.querySelectorAll('[data-field]');
     const values = {};
     inputs.forEach(el => values[el.dataset.field] = el.value.trim());
+
+    // No negative numbers allowed anywhere (Minimum Amount, Benefits
+    // Verification Rate, etc.) — checked against every visible number/money
+    // field in this modal.
+    for (const f of fields) {
+      if ((f.type === 'money' || f.type === 'number') && values[f.key] !== undefined && values[f.key] !== '') {
+        const n = parseFloat(values[f.key]);
+        if (!isNaN(n) && n < 0) {
+          setModalMsg(label(f.key) + ' cannot be negative.', 'error');
+          return;
+        }
+      }
+    }
 
     // Medical Billing Rate (%) should always be stored as a percentage —
     // if the user typed a plain number (e.g. "6"), add the % sign automatically.
