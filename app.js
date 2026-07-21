@@ -69,8 +69,10 @@ const INVOICE_STATUS_OPTIONS = [
   'Need to Send Invoice',
   'Manual Invoice - Check Sheet',
   'Manual Invoice Sent - Check Sheet',
+  'Manual Invoice Sent - Promotion Applied',
   'Pending Manual Invoice',
   'Sent',
+  'Sent - Promotion Applied',
   'Paid',
   'Already Paid',
   'ACH-Initiated',
@@ -79,19 +81,19 @@ const INVOICE_STATUS_OPTIONS = [
 ];
 
 // Status groupings used by the dashboards below
-const SENT_STATUSES = ['Sent', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed', 'Manual Invoice Sent - Check Sheet'];
+const SENT_STATUSES = ['Sent', 'Sent - Promotion Applied', 'Paid', 'Already Paid', 'ACH-Initiated', 'Failed', 'Manual Invoice Sent - Check Sheet', 'Manual Invoice Sent - Promotion Applied'];
 const PENDING_STATUSES = ['Need to Send Invoice', ''];
 // Manual invoice clients (Melissa/Maribel/Sabah, ya future manual clients) —
 // inhe alag dashboard card mein dikhaya jata hai, "Pending" mein nahi.
 const MANUAL_STATUSES = ['Manual Invoice - Check Sheet', 'Pending Manual Invoice'];
 const CHARGED_STATUSES = ['Paid', 'Already Paid'];
-const CHARGE_PENDING_STATUSES = ['Sent', 'ACH-Initiated'];
+const CHARGE_PENDING_STATUSES = ['Sent', 'Sent - Promotion Applied', 'ACH-Initiated'];
 const FAILED_STATUSES = ['Failed'];
 
 // Stage 2 (Charge Customers page) — sirf wo clients dikhayein jinka Stripe
 // invoice already ban chuka hai, warna "Need to Send Invoice" jaise clients
 // bhi list mein aa jate jinhe abhi charge nahi kiya ja sakta.
-const CHARGE_STAGE_STATUSES = ['Sent', 'ACH-Initiated', 'Failed'];
+const CHARGE_STAGE_STATUSES = ['Sent', 'Sent - Promotion Applied', 'ACH-Initiated', 'Failed'];
 
 // Charge Customers page ke top par status-filter chips — default sirf
 // CHARGE_STAGE_STATUSES checked rehte hain. Jab koi client charge ho kar
@@ -100,6 +102,7 @@ const CHARGE_STAGE_STATUSES = ['Sent', 'ACH-Initiated', 'Failed'];
 // isi window mein tick karke dekh sakta hai.
 const CHARGE_STAGE_FILTER_OPTIONS = [
   { key: 'Sent', label: 'Sent', tone: 'warn' },
+  { key: 'Sent - Promotion Applied', label: 'Sent - Promotion Applied', tone: 'warn' },
   { key: 'ACH-Initiated', label: 'ACH-Initiated', tone: 'warn' },
   { key: 'Failed', label: 'Failed', tone: 'danger' },
   { key: 'Paid', label: 'Paid', tone: 'ok' },
