@@ -56,7 +56,10 @@ function parseRatePercent_(val) {
 // Sheet header -> friendlier display label (doesn't change the sheet's actual column name)
 const LABELS = {
   'Practice Collection Month': 'Invoice Month',
-  'Monthly Minimum (Billing)': 'Minimum Amount'
+  'Monthly Minimum (Billing)': 'Minimum Amount',
+  'Promo Discount (%)': 'Promo Discount',
+  'Promo Invoices Left': 'Promo Invoices Left',
+  'Promo Applied Count': 'Promo Applied Count'
 };
 function label(key) { return LABELS[key] || key; }
 
@@ -143,7 +146,10 @@ const BASE_DETAIL_COLUMNS = [
   'Practice Monthly Collection ($)',
   'No. of Verified Benefits',
   'Client Status',
-  'Termination Date'
+  'Termination Date',
+  'Promo Discount (%)',
+  'Promo Invoices Left',
+  'Promo Applied Count'
 ];
 
 // ============================================================
@@ -369,6 +375,7 @@ function renderTable() {
     html += `<td class="sticky-col sticky-1">
       <button class="expand-btn" onclick="toggleDetails(${c.row})" id="expandBtn-${c.row}">▸</button>
       ${isEditor ? `<button class="edit-icon-btn" title="Edit" onclick="openEditModal(${c.row})">✎</button>` : ''}
+      ${isEditor ? `<button class="edit-icon-btn" title="Add Discount" onclick="openPromoDialog(${c.row})">🎁</button>` : ''}
       ${isEditor ? renderTerminateBtn_(c) : ''}
     </td>`;
     html += `<td class="sticky-col sticky-2"><span class="client-name">${escapeHtml(c['Client Name'] || '')}</span>${renderTerminatedBadge_(c)}<span class="client-email">${escapeHtml(c['Email'] || '')}</span></td>`;
@@ -1256,6 +1263,17 @@ function bindUI() {
       if (e.target.id === 'terminateDialogOverlay') closeTerminateDialog();
     });
   }
+
+  const promoDialogCancelBtn = document.getElementById('promoDialogCancelBtn');
+  if (promoDialogCancelBtn) promoDialogCancelBtn.addEventListener('click', closePromoDialog);
+  const promoDialogConfirmBtn = document.getElementById('promoDialogConfirmBtn');
+  if (promoDialogConfirmBtn) promoDialogConfirmBtn.addEventListener('click', confirmPromo);
+  const promoDialogOverlay = document.getElementById('promoDialogOverlay');
+  if (promoDialogOverlay) {
+    promoDialogOverlay.addEventListener('click', e => {
+      if (e.target.id === 'promoDialogOverlay') closePromoDialog();
+    });
+  }
 }
 
 function openAddModal() {
@@ -1619,6 +1637,64 @@ async function confirmTerminate() {
     loadClients();
   } else {
     setTerminateMsg(res.error, 'error');
+  }
+}
+
+// ============================================================
+// ADD DISCOUNT (Promo) dialog — 2 fields: Discount %, Invoices Left
+// ============================================================
+let PROMO_TARGET_ROW = null;
+
+function openPromoDialog(row) {
+  const client = STATE.clients.find(c => c.row === row);
+  if (!client) return;
+  PROMO_TARGET_ROW = row;
+  document.getElementById('promoDialogSub').textContent =
+    (client['Client Name'] || '') + ' — ' + (client['Email'] || '');
+  document.getElementById('promoPercentInput').value = client['Promo Discount (%)'] || '';
+  document.getElementById('promoInvoicesInput').value = client['Promo Invoices Left'] || '';
+  document.getElementById('promoAppliedNote').textContent =
+    'Already used on ' + (client['Promo Applied Count'] || 0) + ' invoice(s) so far.';
+  setPromoMsg('', '');
+  document.getElementById('promoDialogOverlay').classList.add('open');
+}
+
+function closePromoDialog() {
+  document.getElementById('promoDialogOverlay').classList.remove('open');
+  PROMO_TARGET_ROW = null;
+}
+
+function setPromoMsg(msg, type) {
+  const el = document.getElementById('promoDialogMsg');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'modal-msg ' + (type || '');
+}
+
+async function confirmPromo() {
+  if (!PROMO_TARGET_ROW) return;
+  const pct = document.getElementById('promoPercentInput').value;
+  const invoices = document.getElementById('promoInvoicesInput').value;
+
+  const confirmBtn = document.getElementById('promoDialogConfirmBtn');
+  const cancelBtn = document.getElementById('promoDialogCancelBtn');
+  confirmBtn.disabled = true;
+  cancelBtn.disabled = true;
+  confirmBtn.textContent = 'Saving…';
+  setPromoMsg('Saving…', 'saving');
+
+  const res = await apiCall('setPromo', { row: PROMO_TARGET_ROW, discountPercent: pct, invoicesLeft: invoices });
+
+  confirmBtn.disabled = false;
+  cancelBtn.disabled = false;
+  confirmBtn.textContent = 'Save';
+
+  if (res.success) {
+    toast('Discount saved.', 'ok');
+    closePromoDialog();
+    loadClients();
+  } else {
+    setPromoMsg(res.error, 'error');
   }
 }
 
