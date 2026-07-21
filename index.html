@@ -175,6 +175,31 @@
   </div>
 </div>
 
+<!-- MODAL: Add Discount (Promo) -->
+<div class="modal-overlay" id="promoDialogOverlay">
+  <div class="modal">
+    <h3>Add Discount</h3>
+    <p class="modal-sub" id="promoDialogSub"></p>
+    <div class="field-grid">
+      <div class="field">
+        <label>Discount (%)</label>
+        <input type="number" min="0" max="100" step="0.01" id="promoPercentInput" placeholder="e.g. 10">
+      </div>
+      <div class="field">
+        <label>Apply to Next # Invoices</label>
+        <input type="number" min="0" step="1" id="promoInvoicesInput" placeholder="e.g. 2">
+      </div>
+    </div>
+    <p class="lock-note">Discount applies to (Billing Amount + Benefits Amount) on each invoice, shown as a separate "Promotional Discount" line item. It counts down automatically after every invoice sent — set to 0 to stop it early.</p>
+    <p class="lock-note" id="promoAppliedNote"></p>
+    <div class="modal-msg" id="promoDialogMsg"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="promoDialogCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="promoDialogConfirmBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
