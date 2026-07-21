@@ -38,6 +38,17 @@
     </div>
     <button type="submit" class="btn btn-primary" id="loginBtn">Sign in</button>
   </form>
+
+  <p class="forgot-code-link">
+    <a href="#" id="forgotCodeLink">Forgot your Access Code? Contact administrator</a>
+  </p>
+  <div class="forgot-code-box" id="forgotCodeBox" style="display:none;">
+    <label>Enter your email</label>
+    <input type="email" id="forgotCodeEmail" placeholder="you@example.com">
+    <button type="button" class="btn btn-primary" id="forgotCodeSendBtn">Send Access Code</button>
+    <div class="forgot-code-msg" id="forgotCodeMsg"></div>
+  </div>
+
   <div class="gate-error" id="gateError" style="display:none;"></div>
 </section>
 
