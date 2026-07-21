@@ -954,3 +954,7 @@ tbody tr:hover .sticky-col { background: #FAFBFD; }
   .ledger-header { padding: 14px; }
   main { padding: 16px; }
 }
+.forgot-code-link { text-align: center; margin-top: 10px; font-size: 12.5px; }
+.forgot-code-link a { color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+.forgot-code-box { margin-top: 12px; padding: 14px; border: 1px solid #ddd; border-radius: 8px; }
+.forgot-code-msg { margin-top: 8px; font-size: 12.5px; }
