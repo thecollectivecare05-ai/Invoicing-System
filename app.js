@@ -465,8 +465,8 @@ function statusStamp(status) {
 // chuka hai, status ke neeche ek chhoti orange line dikha dete hain.
 function promoAppliedLine_(c) {
   const pct = parseFloat(c['Promo Discount (%)']) || 0;
-  const appliedCount = parseInt(c['Promo Applied Count'], 10) || 0;
-  if (pct > 0 && appliedCount > 0) {
+  const invoicesLeft = parseInt(c['Promo Invoices Left'], 10) || 0;
+  if (pct > 0 && invoicesLeft > 0) {
     return `<div class="promo-applied-line">🏷 ${pct}% promotion applied</div>`;
   }
   return '';
