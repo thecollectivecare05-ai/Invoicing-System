@@ -197,6 +197,24 @@ async function handleLoginSubmit(e) {
   }
 }
 
+async function handleForgotCodeSubmit() {
+  const email = document.getElementById('forgotCodeEmail').value.trim();
+  const msgEl = document.getElementById('forgotCodeMsg');
+  const btn = document.getElementById('forgotCodeSendBtn');
+  if (!email) { msgEl.textContent = 'Please enter your email.'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  const res = await fetch(CONFIG.WEB_APP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: 'requestAccessCode', email })
+  });
+  const data = await res.json();
+  msgEl.textContent = data.message || data.error || '';
+  btn.disabled = false;
+  btn.textContent = 'Send Access Code';
+}
+
 function showGateError(msg) {
   const el = document.getElementById('gateError');
   el.textContent = msg;
@@ -1180,6 +1198,11 @@ function exportChargeStageToExcel() {
 function bindUI() {
   document.getElementById('signOutBtn').addEventListener('click', signOut);
   document.getElementById('addPracticeBtn').addEventListener('click', () => openAddModal());
+  document.getElementById('forgotCodeLink').addEventListener('click', (e) => {
+    e.preventDefault();
+    document.getElementById('forgotCodeBox').style.display = 'block';
+  });
+  document.getElementById('forgotCodeSendBtn').addEventListener('click', handleForgotCodeSubmit);
   document.getElementById('modalOverlay').addEventListener('click', e => {
     if (e.target.id === 'modalOverlay') closeModal();
   });
